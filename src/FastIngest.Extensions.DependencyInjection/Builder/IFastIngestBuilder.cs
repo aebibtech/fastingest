@@ -43,6 +43,63 @@ public interface IFastIngestBuilder
     IFastIngestBuilder AddMongoDbSink(string connectionString, string? databaseName = null);
 
     /// <summary>
+    /// Configures MySQL bulk sink capabilities for the FastIngest engine.
+    /// </summary>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddMySqlSink();
+
+    /// <summary>
+    /// Configures the default MySQL connection string for the FastIngest engine.
+    /// </summary>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddMySqlSink(string connectionString);
+
+    /// <summary>
+    /// Configures SQLite bulk sink capabilities for the FastIngest engine.
+    /// </summary>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddSqliteSink();
+
+    /// <summary>
+    /// Configures the default SQLite connection string for the FastIngest engine.
+    /// </summary>
+    /// <param name="connectionString">The SQLite connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddSqliteSink(string connectionString);
+
+    /// <summary>
+    /// Configures Azure Cosmos DB bulk sink capabilities for the FastIngest engine.
+    /// </summary>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddCosmosDbSink();
+
+    /// <summary>
+    /// Configures default Azure Cosmos DB connection settings for the FastIngest engine.
+    /// </summary>
+    /// <param name="connectionString">The Azure Cosmos DB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddCosmosDbSink(string connectionString, string? databaseName = null, string? containerName = null);
+
+    /// <summary>
+    /// Registers an existing <see cref="Microsoft.Azure.Cosmos.CosmosClient"/> instance for the FastIngest engine.
+    /// </summary>
+    /// <param name="cosmosClient">The configured Cosmos DB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddCosmosDbSink(Microsoft.Azure.Cosmos.CosmosClient cosmosClient, string? databaseName = null, string? containerName = null);
+
+    /// <summary>
+    /// Registers an existing <see cref="Microsoft.Azure.Cosmos.Container"/> instance for the FastIngest engine.
+    /// </summary>
+    /// <param name="container">The configured Cosmos DB container.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddCosmosDbSink(Microsoft.Azure.Cosmos.Container container);
+
+    /// <summary>
     /// Discovers and registers all concrete <see cref="IFastIngestProfile"/> classes in the specified assembly.
     /// </summary>
     /// <param name="assembly">The assembly to scan for profiles.</param>

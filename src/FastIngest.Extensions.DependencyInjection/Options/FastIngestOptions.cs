@@ -78,4 +78,77 @@ public class FastIngestOptions
         MongoDatabaseName = databaseName;
         return this;
     }
+
+    /// <summary>
+    /// Gets or sets the default MySQL connection string.
+    /// </summary>
+    public string? MySqlConnectionString { get; set; }
+
+    /// <summary>
+    /// Configures the default MySQL connection string.
+    /// </summary>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddMySqlSink(string connectionString)
+    {
+        MySqlConnectionString = string.IsNullOrWhiteSpace(connectionString)
+            ? throw new ArgumentNullException(nameof(connectionString))
+            : connectionString;
+        DefaultConnectionString = MySqlConnectionString;
+        return this;
+    }
+
+    /// <summary>
+    /// Gets or sets the default SQLite connection string.
+    /// </summary>
+    public string? SqliteConnectionString { get; set; }
+
+    /// <summary>
+    /// Configures the default SQLite connection string.
+    /// </summary>
+    /// <param name="connectionString">The SQLite connection string.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddSqliteSink(string connectionString)
+    {
+        SqliteConnectionString = string.IsNullOrWhiteSpace(connectionString)
+            ? throw new ArgumentNullException(nameof(connectionString))
+            : connectionString;
+        DefaultConnectionString = SqliteConnectionString;
+        return this;
+    }
+
+    /// <summary>
+    /// Gets or sets the default Azure Cosmos DB connection string.
+    /// </summary>
+    public string? CosmosConnectionString { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default Azure Cosmos DB database name.
+    /// </summary>
+    public string? CosmosDatabaseName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default Azure Cosmos DB container name.
+    /// </summary>
+    public string? CosmosContainerName { get; set; }
+
+    /// <summary>
+    /// Configures the default Azure Cosmos DB connection settings.
+    /// </summary>
+    /// <param name="connectionString">The Azure Cosmos DB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddCosmosDbSink(
+        string connectionString,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        CosmosConnectionString = string.IsNullOrWhiteSpace(connectionString)
+            ? throw new ArgumentNullException(nameof(connectionString))
+            : connectionString;
+        CosmosDatabaseName = databaseName;
+        CosmosContainerName = containerName;
+        return this;
+    }
 }

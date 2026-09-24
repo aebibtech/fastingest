@@ -27,6 +27,9 @@
     <ProjectReference Include="..\..\src\FastIngest.SqlServer\FastIngest.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.Extensions.DependencyInjection\FastIngest.Extensions.DependencyInjection.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.MongoDb\FastIngest.MongoDb.csproj" />
+    <ProjectReference Include="..\..\src\FastIngest.MySql\FastIngest.MySql.csproj" />
+    <ProjectReference Include="..\..\src\FastIngest.Sqlite\FastIngest.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\FastIngest.CosmosDb\FastIngest.CosmosDb.csproj" />
   </ItemGroup>
 
 </Project>

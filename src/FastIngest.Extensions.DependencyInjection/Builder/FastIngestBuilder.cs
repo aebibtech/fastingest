@@ -67,6 +67,62 @@ public class FastIngestBuilder : IFastIngestBuilder
     }
 
     /// <inheritdoc/>
+    public IFastIngestBuilder AddMySqlSink()
+    {
+        FastIngestServiceExtensions.AddMySqlSink(this);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddMySqlSink(string connectionString)
+    {
+        FastIngestServiceExtensions.AddMySqlSink(this, connectionString);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddSqliteSink()
+    {
+        FastIngestServiceExtensions.AddSqliteSink(this);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddSqliteSink(string connectionString)
+    {
+        FastIngestServiceExtensions.AddSqliteSink(this, connectionString);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddCosmosDbSink()
+    {
+        FastIngestServiceExtensions.AddCosmosDbSink(this);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddCosmosDbSink(string connectionString, string? databaseName = null, string? containerName = null)
+    {
+        FastIngestServiceExtensions.AddCosmosDbSink(this, connectionString, databaseName, containerName);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddCosmosDbSink(Microsoft.Azure.Cosmos.CosmosClient cosmosClient, string? databaseName = null, string? containerName = null)
+    {
+        FastIngestServiceExtensions.AddCosmosDbSink(this, cosmosClient, databaseName, containerName);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddCosmosDbSink(Microsoft.Azure.Cosmos.Container container)
+    {
+        FastIngestServiceExtensions.AddCosmosDbSink(this, container);
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IFastIngestBuilder RegisterProfilesFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);

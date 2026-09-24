@@ -5,10 +5,16 @@ using FastIngest.Extensions.DependencyInjection.Options;
 using FastIngest.Extensions.DependencyInjection.Profiles;
 using FastIngest.Extensions.DependencyInjection.Sinks;
 using FastIngest.MongoDb;
+using FastIngest.MySql;
+using FastIngest.Sqlite;
+using FastIngest.CosmosDb;
+using Microsoft.Azure.Cosmos;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using MySqlConnector;
 
 namespace FastIngest.Extensions.DependencyInjection;
 
@@ -386,6 +392,475 @@ public static class FastIngestServiceExtensions
             services.Configure<FastIngestOptions>(options =>
             {
                 options.MongoDatabaseName = databaseName;
+            });
+        }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures MySQL bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddMySqlSink(this FastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures MySQL bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddMySqlSink(this IFastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default MySQL connection string for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddMySqlSink(
+        this FastIngestBuilder builder,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.MySqlConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default MySQL connection string for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddMySqlSink(
+        this IFastIngestBuilder builder,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.MySqlConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default MySQL connection string for FastIngest on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="connectionString">The MySQL connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddMySqlSink(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.MySqlConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures SQLite bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddSqliteSink(this FastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures SQLite bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddSqliteSink(this IFastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default SQLite connection string for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="connectionString">The SQLite connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddSqliteSink(
+        this FastIngestBuilder builder,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.SqliteConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default SQLite connection string for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="connectionString">The SQLite connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddSqliteSink(
+        this IFastIngestBuilder builder,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.SqliteConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default SQLite connection string for FastIngest on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="connectionString">The SQLite connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSqliteSink(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.SqliteConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures Azure Cosmos DB bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddCosmosDbSink(this FastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.TryAddSingleton<CosmosClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var connectionString = options.CosmosConnectionString ?? options.DefaultConnectionString;
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "Azure Cosmos DB connection string is not configured. Configure CosmosConnectionString or DefaultConnectionString in FastIngestOptions, or register a CosmosClient in DI.");
+            }
+
+            return new CosmosClient(connectionString, new CosmosClientOptions { AllowBulkExecution = true });
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Azure Cosmos DB bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddCosmosDbSink(this IFastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (builder is FastIngestBuilder concreteBuilder)
+        {
+            return concreteBuilder.AddCosmosDbSink();
+        }
+
+        builder.Services.TryAddSingleton<CosmosClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var connectionString = options.CosmosConnectionString ?? options.DefaultConnectionString;
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "Azure Cosmos DB connection string is not configured. Configure CosmosConnectionString or DefaultConnectionString in FastIngestOptions, or register a CosmosClient in DI.");
+            }
+
+            return new CosmosClient(connectionString, new CosmosClientOptions { AllowBulkExecution = true });
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures default Azure Cosmos DB connection settings for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="connectionString">The Azure Cosmos DB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddCosmosDbSink(
+        this FastIngestBuilder builder,
+        string connectionString,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.CosmosConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+            if (databaseName != null)
+            {
+                options.CosmosDatabaseName = databaseName;
+            }
+            if (containerName != null)
+            {
+                options.CosmosContainerName = containerName;
+            }
+        });
+
+        AddCosmosDbSink(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures default Azure Cosmos DB connection settings for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="connectionString">The Azure Cosmos DB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddCosmosDbSink(
+        this IFastIngestBuilder builder,
+        string connectionString,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.CosmosConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+            if (databaseName != null)
+            {
+                options.CosmosDatabaseName = databaseName;
+            }
+            if (containerName != null)
+            {
+                options.CosmosContainerName = containerName;
+            }
+        });
+
+        return builder.AddCosmosDbSink();
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="CosmosClient"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="cosmosClient">The configured Cosmos DB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddCosmosDbSink(
+        this FastIngestBuilder builder,
+        CosmosClient cosmosClient,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(cosmosClient);
+
+        builder.Services.AddSingleton<CosmosClient>(cosmosClient);
+
+        if (databaseName != null || containerName != null)
+        {
+            builder.Services.Configure<FastIngestOptions>(options =>
+            {
+                if (databaseName != null) options.CosmosDatabaseName = databaseName;
+                if (containerName != null) options.CosmosContainerName = containerName;
+            });
+        }
+
+        AddCosmosDbSink(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="CosmosClient"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="cosmosClient">The configured Cosmos DB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddCosmosDbSink(
+        this IFastIngestBuilder builder,
+        CosmosClient cosmosClient,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(cosmosClient);
+
+        builder.Services.AddSingleton<CosmosClient>(cosmosClient);
+
+        if (databaseName != null || containerName != null)
+        {
+            builder.Services.Configure<FastIngestOptions>(options =>
+            {
+                if (databaseName != null) options.CosmosDatabaseName = databaseName;
+                if (containerName != null) options.CosmosContainerName = containerName;
+            });
+        }
+
+        return builder.AddCosmosDbSink();
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="Container"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="container">The configured Cosmos DB container.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddCosmosDbSink(
+        this FastIngestBuilder builder,
+        Container container)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(container);
+
+        builder.Services.AddSingleton<Container>(container);
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="Container"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="container">The configured Cosmos DB container.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddCosmosDbSink(
+        this IFastIngestBuilder builder,
+        Container container)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(container);
+
+        builder.Services.AddSingleton<Container>(container);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures default Azure Cosmos DB connection settings for FastIngest on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="connectionString">The Azure Cosmos DB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddCosmosDbSink(
+        this IServiceCollection services,
+        string connectionString,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.CosmosConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+            if (databaseName != null)
+            {
+                options.CosmosDatabaseName = databaseName;
+            }
+            if (containerName != null)
+            {
+                options.CosmosContainerName = containerName;
+            }
+        });
+
+        services.TryAddSingleton<CosmosClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var connStr = options.CosmosConnectionString ?? options.DefaultConnectionString;
+            return new CosmosClient(connStr, new CosmosClientOptions { AllowBulkExecution = true });
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="CosmosClient"/> instance on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="cosmosClient">The configured Cosmos DB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <param name="containerName">Optional default container name.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddCosmosDbSink(
+        this IServiceCollection services,
+        CosmosClient cosmosClient,
+        string? databaseName = null,
+        string? containerName = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(cosmosClient);
+
+        services.AddSingleton<CosmosClient>(cosmosClient);
+
+        if (databaseName != null || containerName != null)
+        {
+            services.Configure<FastIngestOptions>(options =>
+            {
+                if (databaseName != null) options.CosmosDatabaseName = databaseName;
+                if (containerName != null) options.CosmosContainerName = containerName;
             });
         }
 

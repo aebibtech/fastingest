@@ -23,6 +23,7 @@
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <MinVerDefaultPreReleasePhase>preview</MinVerDefaultPreReleasePhase>
     <NoWarn>$(NoWarn);MINVER1008</NoWarn>
+    <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>
 
   <ItemGroup>
