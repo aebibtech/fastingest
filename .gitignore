@@ -25,3 +25,8 @@ desktop.ini
 ## Logs & caches
 *.log
 .dotnet/
+
+## Node / VitePress
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
