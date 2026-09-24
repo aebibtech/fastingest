@@ -29,6 +29,20 @@ public interface IFastIngestBuilder
     IFastIngestBuilder AddSqlServerSink(string connectionString);
 
     /// <summary>
+    /// Configures MongoDB bulk write sink capabilities for the FastIngest engine.
+    /// </summary>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddMongoDbSink();
+
+    /// <summary>
+    /// Configures default MongoDB connection settings for the FastIngest engine.
+    /// </summary>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddMongoDbSink(string connectionString, string? databaseName = null);
+
+    /// <summary>
     /// Discovers and registers all concrete <see cref="IFastIngestProfile"/> classes in the specified assembly.
     /// </summary>
     /// <param name="assembly">The assembly to scan for profiles.</param>

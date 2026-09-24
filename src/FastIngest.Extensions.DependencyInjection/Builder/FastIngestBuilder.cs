@@ -53,6 +53,20 @@ public class FastIngestBuilder : IFastIngestBuilder
     }
 
     /// <inheritdoc/>
+    public IFastIngestBuilder AddMongoDbSink()
+    {
+        FastIngestServiceExtensions.AddMongoDbSink(this);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddMongoDbSink(string connectionString, string? databaseName = null)
+    {
+        FastIngestServiceExtensions.AddMongoDbSink(this, connectionString, databaseName);
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IFastIngestBuilder RegisterProfilesFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);

@@ -10,6 +10,7 @@
     <ProjectReference Include="..\FastIngest.Core\FastIngest.Core.csproj" />
     <ProjectReference Include="..\FastIngest.PostgreSql\FastIngest.PostgreSql.csproj" />
     <ProjectReference Include="..\FastIngest.SqlServer\FastIngest.SqlServer.csproj" />
+    <ProjectReference Include="..\FastIngest.MongoDb\FastIngest.MongoDb.csproj" />
   </ItemGroup>
 
   <ItemGroup>

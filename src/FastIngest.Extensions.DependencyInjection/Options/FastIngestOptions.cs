@@ -47,4 +47,35 @@ public class FastIngestOptions
             : connectionString;
         return this;
     }
+
+    /// <summary>
+    /// Gets or sets the default MongoDB database name.
+    /// </summary>
+    public string? MongoDatabaseName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default MongoDB connection string.
+    /// </summary>
+    public string? MongoConnectionString { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default MongoDB collection name when not specified in a profile.
+    /// </summary>
+    public string? MongoCollectionName { get; set; }
+
+    /// <summary>
+    /// Configures the default MongoDB connection settings.
+    /// </summary>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddMongoDbSink(string connectionString, string? databaseName = null)
+    {
+        MongoConnectionString = string.IsNullOrWhiteSpace(connectionString)
+            ? throw new ArgumentNullException(nameof(connectionString))
+            : connectionString;
+        DefaultConnectionString = MongoConnectionString;
+        MongoDatabaseName = databaseName;
+        return this;
+    }
 }

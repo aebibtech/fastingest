@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NuGet](https://img.shields.io/nuget/v/FastIngest.Core.svg)](https://www.nuget.org/packages/FastIngest.Core)
 
-**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV/XLSX to PostgreSQL and SQL Server). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, fluent validation, and native database binary import protocols (such as PostgreSQL binary `COPY`).
+**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV/XLSX to PostgreSQL, SQL Server, and MongoDB). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
 
 ---
 
@@ -133,9 +133,14 @@ if (!result.IsSuccess)
 ├── FastIngest.sln
 ├── src/
 │   ├── FastIngest.Core/           # Core interfaces, pipeline, and CSV parsers
-│   └── FastIngest.PostgreSql/     # PostgreSQL native binary COPY sink
-└── samples/
-    └── FastIngest.SampleApi/      # Minimal Web API demonstrating ingestion
+│   ├── FastIngest.PostgreSql/     # PostgreSQL native binary COPY sink
+│   ├── FastIngest.SqlServer/      # Microsoft SQL Server SqlBulkCopy sink
+│   ├── FastIngest.MongoDb/        # MongoDB unordered BulkWrite sink
+│   └── FastIngest.Extensions.DependencyInjection/ # Engine, DI, and profile registry
+├── samples/
+│   └── FastIngest.SampleApi/      # Minimal Web API demonstrating ingestion
+└── tests/
+    └── FastIngest.Tests/          # Unit and integration test suites
 ```
 
 ---

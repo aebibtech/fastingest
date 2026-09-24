@@ -1,9 +1,14 @@
 using System.Reflection;
+using FastIngest.Core.Sinks;
 using FastIngest.Extensions.DependencyInjection.Builder;
 using FastIngest.Extensions.DependencyInjection.Options;
 using FastIngest.Extensions.DependencyInjection.Profiles;
+using FastIngest.Extensions.DependencyInjection.Sinks;
+using FastIngest.MongoDb;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 
 namespace FastIngest.Extensions.DependencyInjection;
 
@@ -156,6 +161,233 @@ public static class FastIngestServiceExtensions
         {
             options.DefaultConnectionString = connectionString;
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures MongoDB bulk write sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddMongoDbSink(this FastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.TryAddSingleton<IMongoClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var connectionString = options.MongoConnectionString ?? options.DefaultConnectionString;
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "MongoDB connection string is not configured. Configure MongoConnectionString or DefaultConnectionString in FastIngestOptions, or register an IMongoClient in DI.");
+            }
+
+            return new MongoClient(connectionString);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(MongoDbIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures MongoDB bulk write sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddMongoDbSink(this IFastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (builder is FastIngestBuilder concreteBuilder)
+        {
+            return concreteBuilder.AddMongoDbSink();
+        }
+
+        builder.Services.TryAddSingleton<IMongoClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var connectionString = options.MongoConnectionString ?? options.DefaultConnectionString;
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "MongoDB connection string is not configured. Configure MongoConnectionString or DefaultConnectionString in FastIngestOptions, or register an IMongoClient in DI.");
+            }
+
+            return new MongoClient(connectionString);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(MongoDbIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures default MongoDB connection settings for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddMongoDbSink(
+        this FastIngestBuilder builder,
+        string connectionString,
+        string? databaseName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.MongoConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+            if (databaseName != null)
+            {
+                options.MongoDatabaseName = databaseName;
+            }
+        });
+
+        AddMongoDbSink(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures default MongoDB connection settings for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddMongoDbSink(
+        this IFastIngestBuilder builder,
+        string connectionString,
+        string? databaseName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.MongoConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+            if (databaseName != null)
+            {
+                options.MongoDatabaseName = databaseName;
+            }
+        });
+
+        return builder.AddMongoDbSink();
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="IMongoClient"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="mongoClient">The configured MongoDB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddMongoDbSink(
+        this FastIngestBuilder builder,
+        IMongoClient mongoClient,
+        string? databaseName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(mongoClient);
+
+        builder.Services.AddSingleton<IMongoClient>(mongoClient);
+
+        if (databaseName != null)
+        {
+            builder.Services.Configure<FastIngestOptions>(options =>
+            {
+                options.MongoDatabaseName = databaseName;
+            });
+        }
+
+        AddMongoDbSink(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="IMongoClient"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="mongoClient">The configured MongoDB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddMongoDbSink(
+        this IFastIngestBuilder builder,
+        IMongoClient mongoClient,
+        string? databaseName = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(mongoClient);
+
+        builder.Services.AddSingleton<IMongoClient>(mongoClient);
+
+        if (databaseName != null)
+        {
+            builder.Services.Configure<FastIngestOptions>(options =>
+            {
+                options.MongoDatabaseName = databaseName;
+            });
+        }
+
+        return builder.AddMongoDbSink();
+    }
+
+    /// <summary>
+    /// Configures default MongoDB connection settings for FastIngest on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="connectionString">The MongoDB connection string.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddMongoDbSink(
+        this IServiceCollection services,
+        string connectionString,
+        string? databaseName = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.MongoConnectionString = connectionString;
+            options.DefaultConnectionString = connectionString;
+            if (databaseName != null)
+            {
+                options.MongoDatabaseName = databaseName;
+            }
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="IMongoClient"/> instance on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="mongoClient">The configured MongoDB client.</param>
+    /// <param name="databaseName">Optional default database name.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddMongoDbSink(
+        this IServiceCollection services,
+        IMongoClient mongoClient,
+        string? databaseName = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(mongoClient);
+
+        services.AddSingleton<IMongoClient>(mongoClient);
+
+        if (databaseName != null)
+        {
+            services.Configure<FastIngestOptions>(options =>
+            {
+                options.MongoDatabaseName = databaseName;
+            });
+        }
 
         return services;
     }
