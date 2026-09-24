@@ -46,6 +46,23 @@ public class DiCustomerFailFastProfile : FastIngestProfile<DiCustomer>
     }
 }
 
+public class DiCustomerCustomCapacityProfile : FastIngestProfile<DiCustomer>
+{
+    public DiCustomerCustomCapacityProfile()
+    {
+        ToTable("di_customers");
+        WithBatchSize(2);
+        WithChannelCapacity(4);
+        WithErrorStrategy(ErrorStrategy.CollectAndContinue);
+        WithFileType(FileType.Csv);
+
+        Map(x => x.Id, "customer_id");
+        Map(x => x.Email, "email");
+        Map(x => x.FullName, "full_name");
+        Map(x => x.Balance, "balance");
+    }
+}
+
 public class DiCustomerValidator : AbstractValidator<DiCustomer>
 {
     public DiCustomerValidator()
@@ -233,5 +250,55 @@ public class DependencyInjectionTests
         });
 
         Assert.Contains("No connection string configured", ex.Message);
+    }
+
+    [Fact]
+    public void FastIngestOptions_Should_Expose_ChannelCapacity()
+    {
+        var options = new FastIngestOptions();
+        Assert.Equal(2, options.ChannelCapacity);
+        Assert.Equal(2, options.DefaultChannelCapacity);
+
+        options.ChannelCapacity = 5;
+        Assert.Equal(5, options.ChannelCapacity);
+        Assert.Equal(5, options.DefaultChannelCapacity);
+
+        options.DefaultChannelCapacity = 8;
+        Assert.Equal(8, options.ChannelCapacity);
+        Assert.Equal(8, options.DefaultChannelCapacity);
+    }
+
+    [Fact]
+    public void FastIngestProfile_Should_Configure_ChannelCapacity()
+    {
+        var profile = new DiCustomerCustomCapacityProfile();
+        Assert.Equal(4, profile.ChannelCapacity);
+    }
+
+    [Fact]
+    public async Task Engine_Should_Ingest_Successfully_With_Custom_ChannelCapacity()
+    {
+        var csv = """
+                  customer_id,email,full_name,balance
+                  1,alice@example.com,Alice Smith,150.50
+                  2,bob@example.com,Bob Jones,200.00
+                  """;
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+
+        var services = new ServiceCollection();
+        services.AddFastIngest(b => b.RegisterProfile<DiCustomerCustomCapacityProfile>());
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        var engine = scope.ServiceProvider.GetRequiredService<IFastIngestEngine>();
+        var sink = new TestMemorySink<DiCustomer>();
+
+        var result = await engine.IngestAsync(stream, sink);
+
+        Assert.Equal(2, result.TotalProcessed);
+        Assert.Equal(2, result.TotalSucceeded);
+        Assert.True(result.IsSuccess);
     }
 }

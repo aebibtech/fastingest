@@ -18,6 +18,20 @@ public class FastIngestOptions
     public int DefaultBatchSize { get; set; } = 5000;
 
     /// <summary>
+    /// Gets or sets the default bounded channel capacity (batches in flight) between reader and sink. Defaults to 2.
+    /// </summary>
+    public int ChannelCapacity { get; set; } = 2;
+
+    /// <summary>
+    /// Gets or sets the default bounded channel capacity (batches in flight) between reader and sink. Defaults to 2.
+    /// </summary>
+    public int DefaultChannelCapacity
+    {
+        get => ChannelCapacity;
+        set => ChannelCapacity = value;
+    }
+
+    /// <summary>
     /// Gets or sets the default error handling strategy. Defaults to <see cref="ErrorStrategy.FailFast"/>.
     /// </summary>
     public ErrorStrategy DefaultErrorStrategy { get; set; } = ErrorStrategy.FailFast;

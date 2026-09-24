@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Threading.Channels;
 using FastIngest.Core.Common;
 using FastIngest.Core.Exceptions;
 using FastIngest.Core.Mapping;
@@ -26,6 +28,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     private IValidator<TRecord>? _validator;
     private ValidationOptions _validationOptions = new();
     private int _batchSize = 5000;
+    private readonly PipelineOptions _pipelineOptions = new();
     private Action<IngestProgress>? _progressCallback;
 
     /// <summary>
@@ -92,6 +95,22 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     }
 
     /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> WithChannelCapacity(int capacity = 2)
+    {
+        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity), "Channel capacity must be greater than zero.");
+        _pipelineOptions.BoundedChannelCapacity = capacity;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> WithOptions(Action<PipelineOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(_pipelineOptions);
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> OnProgress(Action<IngestProgress> callback)
     {
         _progressCallback = callback ?? throw new ArgumentNullException(nameof(callback));
@@ -120,108 +139,205 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
 
         var mappings = GetMappings();
         var errors = new List<IngestRowError>();
-        var batch = new List<TRecord>(_batchSize);
 
         long totalProcessed = 0;
         long totalSucceeded = 0;
         long totalFailed = 0;
-
-        // Initialize zero-allocation Sylvan CsvDataReader over stream
-        using var streamReader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 65536, leaveOpen: true);
-        var csvOptions = new CsvDataReaderOptions
-        {
-            HasHeaders = true
-        };
-
-        using var csvReader = CsvDataReader.Create(streamReader, csvOptions);
-
-        // Map column header names to zero-based ordinals for fast O(1) index lookups
-        var headerOrdinals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < csvReader.FieldCount; i++)
-        {
-            headerOrdinals[csvReader.GetName(i)] = i;
-        }
-
-        // Prepare high-performance binder (constructor-based for positional records or property-setter based)
-        var binder = CreateRowBinder(mappings, headerOrdinals);
-
+        long streamPosition = 0;
         long streamLength = _stream.CanSeek ? _stream.Length : 0;
 
-        // Streaming row-by-row iteration without loading whole dataset into memory
-        while (await csvReader.ReadAsync(cancellationToken))
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var ct = linkedCts.Token;
+
+        var channel = Channel.CreateBounded<IReadOnlyList<TRecord>>(new BoundedChannelOptions(_pipelineOptions.BoundedChannelCapacity)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            totalProcessed++;
-            long rowIndex = totalProcessed;
+            SingleWriter = _pipelineOptions.SingleWriter,
+            SingleReader = _pipelineOptions.SingleReader,
+            FullMode = _pipelineOptions.FullMode
+        });
 
-            // Attempt to materialize TRecord from current CSV row
-            bool rowMaterialized = binder.TryMaterialize(csvReader, rowIndex, out var record, out var materializationErrors);
-
-            if (!rowMaterialized)
+        var producerTask = Task.Run(async () =>
+        {
+            try
             {
-                totalFailed++;
-                errors.AddRange(materializationErrors);
-
-                if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                // Initialize zero-allocation Sylvan CsvDataReader over stream
+                using var streamReader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 65536, leaveOpen: true);
+                var csvOptions = new CsvDataReaderOptions
                 {
-                    throw new FastIngestValidationException(
-                        $"Materialization failed on row {rowIndex}: {materializationErrors.FirstOrDefault()?.ErrorMessage}",
-                        materializationErrors);
+                    HasHeaders = true
+                };
+
+                using var csvReader = CsvDataReader.Create(streamReader, csvOptions);
+
+                // Map column header names to zero-based ordinals for fast O(1) index lookups
+                var headerOrdinals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < csvReader.FieldCount; i++)
+                {
+                    headerOrdinals[csvReader.GetName(i)] = i;
                 }
 
-                continue;
-            }
+                // Prepare high-performance binder (constructor-based for positional records or property-setter based)
+                var binder = CreateRowBinder(mappings, headerOrdinals);
 
-            // Execute FluentValidation rules if configured
-            if (_validator != null && record != null)
-            {
-                var validationResult = await _validator.ValidateAsync(record, cancellationToken);
-                if (!validationResult.IsValid)
+                var batch = new List<TRecord>(_batchSize);
+
+                // Streaming row-by-row iteration without loading whole dataset into memory
+                while (await csvReader.ReadAsync(ct))
                 {
-                    totalFailed++;
-                    var rowErrors = validationResult.Errors.Select(e =>
-                        new IngestRowError(rowIndex, e.PropertyName, e.AttemptedValue?.ToString() ?? string.Empty, e.ErrorMessage)
-                    ).ToList();
+                    ct.ThrowIfCancellationRequested();
+                    Interlocked.Increment(ref totalProcessed);
+                    long rowIndex = totalProcessed;
 
-                    errors.AddRange(rowErrors);
-
-                    if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                    if (_stream.CanSeek)
                     {
-                        throw new FastIngestValidationException(
-                            $"Validation failed on row {rowIndex}: {rowErrors.FirstOrDefault()?.ErrorMessage}",
-                            rowErrors);
+                        Volatile.Write(ref streamPosition, _stream.Position);
                     }
 
-                    continue;
+                    // Attempt to materialize TRecord from current CSV row
+                    bool rowMaterialized = binder.TryMaterialize(csvReader, rowIndex, out var record, out var materializationErrors);
+
+                    if (!rowMaterialized)
+                    {
+                        Interlocked.Increment(ref totalFailed);
+                        errors.AddRange(materializationErrors);
+
+                        if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                        {
+                            throw new FastIngestValidationException(
+                                $"Materialization failed on row {rowIndex}: {materializationErrors.FirstOrDefault()?.ErrorMessage}",
+                                materializationErrors);
+                        }
+
+                        continue;
+                    }
+
+                    // Execute FluentValidation rules if configured
+                    if (_validator != null && record != null)
+                    {
+                        var validationResult = await _validator.ValidateAsync(record, ct);
+                        if (!validationResult.IsValid)
+                        {
+                            Interlocked.Increment(ref totalFailed);
+                            var rowErrors = validationResult.Errors.Select(e =>
+                                new IngestRowError(rowIndex, e.PropertyName, e.AttemptedValue?.ToString() ?? string.Empty, e.ErrorMessage)
+                            ).ToList();
+
+                            errors.AddRange(rowErrors);
+
+                            if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                            {
+                                throw new FastIngestValidationException(
+                                    $"Validation failed on row {rowIndex}: {rowErrors.FirstOrDefault()?.ErrorMessage}",
+                                    rowErrors);
+                            }
+
+                            continue;
+                        }
+                    }
+
+                    if (record != null)
+                    {
+                        batch.Add(record);
+                    }
+
+                    // Flush chunk batch when threshold reached
+                    if (batch.Count >= _batchSize)
+                    {
+                        await channel.Writer.WriteAsync(batch, ct);
+                        batch = new List<TRecord>(_batchSize);
+                    }
                 }
-            }
 
-            if (record != null)
+                // Flush remaining trailing records
+                if (batch.Count > 0)
+                {
+                    await channel.Writer.WriteAsync(batch, ct);
+                }
+
+                if (_stream.CanSeek)
+                {
+                    Volatile.Write(ref streamPosition, _stream.Length);
+                }
+
+                channel.Writer.Complete();
+            }
+            catch (Exception ex)
             {
-                batch.Add(record);
-                totalSucceeded++;
+                channel.Writer.TryComplete(ex);
+                try { linkedCts.Cancel(); } catch { }
+                throw;
             }
+        }, ct);
 
-            // Flush chunk batch when threshold reached
-            if (batch.Count >= _batchSize)
-            {
-                await sink.WriteBatchAsync(batch, cancellationToken);
-                batch.Clear();
-
-                double? percent = streamLength > 0 && _stream.CanSeek
-                    ? Math.Min(100.0, ((double)_stream.Position / streamLength) * 100.0)
-                    : null;
-
-                _progressCallback?.Invoke(new IngestProgress(totalProcessed, totalSucceeded, totalFailed, percent));
-            }
-        }
-
-        // Flush remaining trailing records
-        if (batch.Count > 0)
+        var consumerTask = Task.Run(async () =>
         {
-            await sink.WriteBatchAsync(batch, cancellationToken);
-            batch.Clear();
+            long succeeded = 0;
+            try
+            {
+                await foreach (var batch in channel.Reader.ReadAllAsync(ct))
+                {
+                    long written = await sink.WriteBatchAsync(batch, ct);
+                    succeeded += written > 0 ? written : batch.Count;
+                    Interlocked.Exchange(ref totalSucceeded, succeeded);
+
+                    double? percent = streamLength > 0
+                        ? Math.Min(100.0, ((double)Volatile.Read(ref streamPosition) / streamLength) * 100.0)
+                        : null;
+
+                    _progressCallback?.Invoke(new IngestProgress(
+                        Interlocked.Read(ref totalProcessed),
+                        succeeded,
+                        Interlocked.Read(ref totalFailed),
+                        percent));
+                }
+
+                return succeeded;
+            }
+            catch (Exception)
+            {
+                try { linkedCts.Cancel(); } catch { }
+                throw;
+            }
+        }, ct);
+
+        try
+        {
+            await Task.WhenAll(producerTask, consumerTask);
         }
+        catch
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            var realExceptions = new List<Exception>();
+
+            if (producerTask.IsFaulted && producerTask.Exception != null)
+            {
+                realExceptions.AddRange(producerTask.Exception.InnerExceptions.Where(e => e is not OperationCanceledException));
+            }
+
+            if (consumerTask.IsFaulted && consumerTask.Exception != null)
+            {
+                realExceptions.AddRange(consumerTask.Exception.InnerExceptions.Where(e => e is not OperationCanceledException));
+            }
+
+            if (realExceptions.Count > 0)
+            {
+                var validationEx = realExceptions.OfType<FastIngestValidationException>().FirstOrDefault();
+                if (validationEx != null)
+                {
+                    throw validationEx;
+                }
+
+                ExceptionDispatchInfo.Capture(realExceptions[0]).Throw();
+            }
+
+            throw;
+        }
+
+        totalSucceeded = await consumerTask;
 
         // Final progress report at 100%
         _progressCallback?.Invoke(new IngestProgress(totalProcessed, totalSucceeded, totalFailed, 100.0));

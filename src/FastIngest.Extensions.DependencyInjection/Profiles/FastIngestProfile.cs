@@ -26,6 +26,9 @@ public abstract class FastIngestProfile<TRecord> : IFastIngestProfile<TRecord>
     public int BatchSize { get; protected set; } = 5000;
 
     /// <inheritdoc/>
+    public int ChannelCapacity { get; protected set; } = 2;
+
+    /// <inheritdoc/>
     public ErrorStrategy ErrorStrategy { get; protected set; } = ErrorStrategy.FailFast;
 
     /// <inheritdoc/>
@@ -65,6 +68,21 @@ public abstract class FastIngestProfile<TRecord> : IFastIngestProfile<TRecord>
             throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be greater than zero.");
         }
         BatchSize = batchSize;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the bounded channel capacity (number of batches in flight) for this record profile.
+    /// </summary>
+    /// <param name="capacity">The maximum number of batches to buffer in flight concurrently.</param>
+    /// <returns>The current profile instance for fluent chaining.</returns>
+    protected FastIngestProfile<TRecord> WithChannelCapacity(int capacity)
+    {
+        if (capacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(capacity), "Channel capacity must be greater than zero.");
+        }
+        ChannelCapacity = capacity;
         return this;
     }
 

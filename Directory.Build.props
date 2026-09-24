@@ -7,7 +7,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!-- Package Metadata -->
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
     <Authors>Paul Abib Camano</Authors>
     <Company>Aebibtech</Company>
     <Description>High-performance streaming bulk data ingestion engine and sinks for .NET.</Description>

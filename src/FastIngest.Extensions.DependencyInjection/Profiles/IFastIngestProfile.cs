@@ -29,6 +29,11 @@ public interface IFastIngestProfile
     int BatchSize { get; }
 
     /// <summary>
+    /// Gets the bounded channel capacity (batches kept in flight concurrently). Defaults to 2.
+    /// </summary>
+    int ChannelCapacity => 2;
+
+    /// <summary>
     /// Gets the error handling strategy when encountering invalid rows.
     /// </summary>
     ErrorStrategy ErrorStrategy { get; }

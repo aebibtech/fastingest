@@ -58,6 +58,20 @@ public interface IFastIngestPipeline<TRecord>
     IFastIngestPipeline<TRecord> WithBatchSize(int batchSize = 5000);
 
     /// <summary>
+    /// Configures the bounded channel capacity (number of batches kept in flight concurrently).
+    /// </summary>
+    /// <param name="capacity">The maximum number of batches to buffer between reader and sink (defaults to 2).</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> WithChannelCapacity(int capacity = 2);
+
+    /// <summary>
+    /// Configures channel tuning and execution options for the pipeline.
+    /// </summary>
+    /// <param name="configure">The action to configure <see cref="PipelineOptions"/>.</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> WithOptions(Action<PipelineOptions> configure);
+
+    /// <summary>
     /// Registers a progress callback invoked after every batch flush or pipeline stage update.
     /// </summary>
     /// <param name="callback">The callback receiving <see cref="IngestProgress"/> telemetry.</param>

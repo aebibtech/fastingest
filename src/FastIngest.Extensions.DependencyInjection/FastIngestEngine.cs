@@ -100,12 +100,14 @@ public class FastIngestEngine : IFastIngestEngine
         var mappings = profile.GetMappings();
 
         int batchSize = profile.BatchSize > 0 ? profile.BatchSize : _options.DefaultBatchSize;
+        int channelCapacity = profile.ChannelCapacity > 0 ? profile.ChannelCapacity : _options.ChannelCapacity;
 
         // 3. Construct high-throughput streaming pipeline
         var pipeline = FastIngestPipeline<TRecord>.Create()
             .FromStream(stream, profile.FileType)
             .WithMappings(mappings)
-            .WithBatchSize(batchSize);
+            .WithBatchSize(batchSize)
+            .WithChannelCapacity(channelCapacity);
 
         if (onProgress != null)
         {

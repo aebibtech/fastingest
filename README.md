@@ -32,12 +32,12 @@ Stream (CSV / XLSX)
                │
                ▼
 ┌───────────────────────────────┐
-│ Batch Buffering & Partitioning│  <-- Configurable batch chunks (e.g. 5,000)
+│ Bounded Channels Pipeline     │  <-- System.Threading.Channels backpressure
 └──────────────┬────────────────┘
                │
                ▼
 ┌───────────────────────────────┐
-│ Native Database COPY Sink     │  <-- PostgreSQL Binary COPY FROM STDIN
+│ Native Database COPY Sink     │  <-- High-throughput batch streaming
 └───────────────────────────────┘
 ```
 
@@ -45,12 +45,13 @@ Stream (CSV / XLSX)
 
 ## Key Features
 
-- **Constant-Memory Streaming**: Stream arbitrarily large files (gigabytes to tens of gigabytes) with fixed memory footprint.
+- **Concurrent Producer-Consumer Pipelining**: Decouples CPU parsing/validation from database I/O socket operations using bounded `System.Threading.Channels` with backpressure.
+- **Constant-Memory Streaming**: Stream arbitrarily large files (gigabytes to tens of gigabytes) with strict $O(1)$ memory guarantees.
 - **Native Database COPY**: High-speed binary ingestion utilizing PostgreSQL `COPY ... FROM STDIN (FORMAT BINARY)`.
 - **Validation Strategies**:
   - `FailFast`: Immediately halts ingestion on the first invalid record.
   - `CollectAndContinue`: Collects invalid row details and exports an error report CSV while allowing valid records to proceed.
-- **Fluent Pipeline API**: Composable, chainable pipeline configuration with progress tracking.
+- **Fluent Pipeline API**: Composable, chainable pipeline configuration with channel capacity tuning and progress tracking.
 - **SemVer 2.0 Driven by Git Tags**: Automated versioning via MinVer and seamless CI/CD publishing.
 
 ---
