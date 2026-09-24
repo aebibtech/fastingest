@@ -30,6 +30,7 @@ public class CustomerImportProfile : FastIngestProfile<CustomerRecord>
     {
         ToTable("customers");
         WithBatchSize(5000);
+        WithChannelCapacity(3); // Keep up to 3 batches in flight concurrently
         WithErrorStrategy(ErrorStrategy.CollectAndContinue);
         WithFileType(FileType.Csv);
 
@@ -57,6 +58,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Register FastIngest with default database sink and profile discovery
 builder.Services.AddFastIngest(ingest =>
 {
+    // Tune default channel capacity and batch sizes
+    ingest.ChannelCapacity = 3;
+    ingest.DefaultBatchSize = 5000;
+
     // Configure default PostgreSQL connection string
     ingest.AddPostgreSqlSink(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? "Host=localhost;Database=mydb;Username=postgres;Password=secret");

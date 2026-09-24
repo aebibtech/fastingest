@@ -16,40 +16,42 @@ Processing large data imports in .NET frequently runs into three major bottlenec
 
 ## How FastIngest Solves It
 
-FastIngest combines three core pillars to achieve maximum throughput with fixed memory:
+FastIngest combines four core pillars to achieve maximum throughput with fixed memory:
 
 ```
 Stream (CSV / XLSX)
         │
         ▼
 ┌─────────────────────────────────┐
-│ Sylvan Zero-Allocation Reader   │  <-- O(1) Memory row streaming
+│ Producer: Sylvan Stream Reader  │  <-- Zero-allocation row streaming (CPU)
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
-│ Expression-Compiled Mapper      │  <-- Zero-reflection property binding
+│ Producer: Pre-Compiled Mapper   │  <-- Zero-reflection property binding
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
-│ FluentValidation Engine         │  <-- FailFast or CollectAndContinue
+│ Producer: FluentValidation      │  <-- FailFast or CollectAndContinue
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
-│ Batch Buffering & Partitioning  │  <-- Configurable chunks (e.g. 5,000 rows)
+│ System.Threading.Channels       │  <-- Bounded channel backpressure (O(1) Memory)
+│ (BoundedChannelFullMode.Wait)   │  <-- Keeps 2-3 batches in flight concurrently
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
-│ Native Database Bulk Sink       │  <-- Binary COPY, SqlBulkCopy, etc.
+│ Consumer: Native Database Sink  │  <-- Binary COPY, SqlBulkCopy, etc. (I/O)
 └─────────────────────────────────┘
 ```
 
 1. **Zero-Allocation Streaming**: Built on [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the fastest CSV reader in the .NET ecosystem, reading records as raw spans and UTF-8 bytes with minimal heap allocation.
 2. **Pre-Compiled Expression Trees**: Column mappings are compiled into high-performance delegate expressions once and cached for the lifetime of your application. Property extraction behaves at compiled code speed with zero reflection overhead.
-3. **Native Bulk Transport Protocols**: FastIngest avoids generic SQL queries and binds directly to native database streaming interfaces:
+3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity ($O(1)$ memory).
+4. **Native Bulk Transport Protocols**: FastIngest avoids generic SQL queries and binds directly to native database streaming interfaces:
    - PostgreSQL: Native binary `COPY ... FROM STDIN (FORMAT BINARY)`
    - SQL Server: `SqlBulkCopy` backed by a custom `BatchDataReader<TRecord>`
    - MySQL / MariaDB: `MySqlBulkCopy` and batched multi-row transactions
@@ -63,6 +65,7 @@ Stream (CSV / XLSX)
 ## Key Benefits
 
 - **Flat Memory Footprint**: Ingest 100 rows or 50,000,000 rows with the same ~25 MB working set.
+- **CPU & I/O Concurrency**: Channel pipelining ensures database sockets write batches while subsequent rows are simultaneously parsed and validated.
 - **Fail-Fast or Error Quarantine**: Stop immediately on the first bad record or collect errors into an exportable CSV manifest while saving valid records.
 - **First-Class Dependency Injection**: Configure destination profiles in your startup pipeline and inject `IFastIngestEngine` into ASP.NET Core Minimal APIs or background workers.
 - **Clean Developer Experience**: Fluent, chainable builder API with built-in progress events and cancellation token support.

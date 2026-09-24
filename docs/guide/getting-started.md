@@ -97,10 +97,32 @@ var result = await FastIngestPipeline<CustomerRecord>.Create()
     })
     .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
     .WithBatchSize(5000)
+    .WithChannelCapacity(2)
     .OnProgress(p => Console.WriteLine($"Processed {p.RowsProcessed} rows ({p.PercentComplete:F1}%)..."))
     .WriteToPostgresAsync(connection, "customers");
 
 Console.WriteLine($"Done! Succeeded: {result.TotalSucceeded:N0}, Failed: {result.TotalFailed:N0}");
+```
+
+### Channel Tuning & Concurrency
+
+FastIngest runs a decoupled producer-consumer architecture using `System.Threading.Channels`:
+- The **Producer** task reads, maps, and validates incoming rows.
+- The **Consumer** task streams batches into the database sink.
+
+You can configure the in-flight batch capacity using `.WithChannelCapacity(int capacity = 2)` or fine-tune channel options with `.WithOptions(...)`:
+
+```csharp
+pipeline
+    .WithBatchSize(5000)
+    .WithChannelCapacity(3) // Keeps up to 3 batches in flight concurrently
+    .WithOptions(opt =>
+    {
+        opt.BoundedChannelCapacity = 3;
+        opt.SingleWriter = true;
+        opt.SingleReader = true;
+        opt.FullMode = BoundedChannelFullMode.Wait; // Enforces backpressure
+    });
 ```
 
 ---

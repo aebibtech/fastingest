@@ -28,8 +28,8 @@ Source Stream (CSV/XLSX)
 [Pre-compiled Expression Map]  ◄── Reads raw string spans, zero reflection
    │
    ▼
-[Fixed-Capacity Batch Chunk]   ◄── e.g., strictly 5,000 rows in memory
-   │
+[System.Threading.Channels]    ◄── Bounded channel (e.g., 2 batches in flight)
+   │                           ◄── BoundedChannelFullMode.Wait enforces backpressure
    ▼
 [Native Database Stream Sink]  ◄── Pushed directly to TCP wire buffer
    │
@@ -45,12 +45,12 @@ FastIngest embeds [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the hi
 
 Dynamic property accessors often use `System.Reflection`, which boxes value types and causes constant heap allocations. FastIngest pre-compiles strongly-typed lambda expressions (`Expression<Func<TRecord, object?>>`) during profile initialization. Mapping and reading values incurs no reflection penalty.
 
-### 3. Chunk Partitioning & Prompt Deallocation
+### 3. Bounded Channel Buffering & Backpressure
 
-Records are accumulated in batches capped at your configured `batchSize` (default: `5,000`). Once a batch reaches capacity:
-1. It is immediately flushed into the native database sink (PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, etc.).
-2. The batch reference is cleared.
-3. Because batch lifecycles are measured in tens of milliseconds, objects stay strictly within **Generation 0** of the .NET Garbage Collector and are collected almost instantaneously without triggering costly Gen 2 or LOH sweeps.
+Records are accumulated in batches capped at your configured `batchSize` (default: `5,000`). Batches are posted to a bounded `System.Threading.Channels.Channel<IReadOnlyList<TRecord>>` configured with `BoundedChannelFullMode.Wait`:
+1. Even when CPU row parsing outpaces database socket writes, the producer task pauses at `WriteAsync` whenever the channel reaches capacity (default: 2 batches).
+2. The maximum number of records held in memory is strictly bounded by $(\text{ChannelCapacity} + 1) \times \text{BatchSize}$. For a 5,000-row batch with capacity 2, at most 15,000 rows can exist in flight at any given moment, preserving true $O(1)$ memory guarantees regardless of total file size.
+3. Once written to the database sink, batch references are dropped immediately, remaining within **Generation 0** of the .NET Garbage Collector and avoiding Gen 2 or Large Object Heap (LOH) pollution.
 
 ---
 

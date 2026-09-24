@@ -20,6 +20,9 @@ features:
   - icon: ⚡
     title: Constant Memory (O(1))
     details: Stream 10GB+ CSV and Excel datasets with a completely flat memory footprint. Built on top of Sylvan's zero-allocation streaming parser to eliminate GC pressure.
+  - icon: 🔄
+    title: Producer-Consumer Channels
+    details: Decouples CPU stream parsing and validation from database socket operations using System.Threading.Channels with bounded backpressure.
   - icon: 🗄️
     title: 7 High-Speed Sinks
     details: Native database integrations including PostgreSQL binary COPY, SQL Server SqlBulkCopy, MySQL BulkCopy, SQLite WAL batching, MongoDB unordered writes, Cosmos DB, and Elasticsearch.
@@ -57,6 +60,7 @@ var result = await FastIngestPipeline<TransactionRecord>.Create()
     })
     .ValidateWith<TransactionValidator>()
     .WithBatchSize(10_000)
+    .WithChannelCapacity(2)
     .WriteToPostgresAsync(conn, "transactions");
 
 Console.WriteLine($"Ingested {result.TotalSucceeded:N0} rows in {result.Duration.TotalSeconds:F1}s!");
