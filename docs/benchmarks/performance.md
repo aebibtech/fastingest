@@ -8,11 +8,12 @@ This page details throughput and memory benchmarks comparing **FastIngest** agai
 
 All benchmarks were conducted using the following test environment:
 
-- **Runtime**: .NET 9.0.2 (x64 Release build, Server GC)
-- **CPU**: AMD Ryzen 9 7950X (16 cores, 32 threads)
-- **RAM**: 64 GB DDR5-6000
-- **Storage**: Samsung 990 Pro PCIe 4.0 NVMe SSD (Local dedicated database storage)
-- **Dataset**: Synthetic customer transaction records (8 columns: `Id [int]`, `Email [string]`, `FullName [string]`, `Amount [decimal]`, `Status [string]`, `IsActive [bool]`, `CreatedAt [datetime]`, `UpdatedAt [datetime]`).
+- **Runtime**: .NET 9.0.15 (arm64 Release build, Server GC)
+- **CPU**: Apple M4 (10 cores: 4 performance, 6 efficiency)
+- **RAM**: 16 GB Unified Memory
+- **Host OS**: macOS 27.0 (Darwin arm64)
+- **Database Engine**: PostgreSQL 16 Alpine via Testcontainers (OrbStack Docker Engine)
+- **Dataset**: Synthetic customer transaction records (6 columns: `id [bigint]`, `sku [text]`, `email [text]`, `price [numeric]`, `quantity [int]`, `created_at [timestamptz]`).
 
 ---
 
