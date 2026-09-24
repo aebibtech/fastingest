@@ -10,6 +10,7 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <Description>SQL Server bulk copy ingestion sink for FastIngest using high-performance SqlBulkCopy.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

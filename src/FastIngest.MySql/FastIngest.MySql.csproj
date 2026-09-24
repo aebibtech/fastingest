@@ -10,6 +10,7 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <Description>MySQL bulk copy ingestion sink for FastIngest using high-performance MySqlBulkCopy.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

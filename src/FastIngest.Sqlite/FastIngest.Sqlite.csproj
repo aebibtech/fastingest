@@ -10,6 +10,7 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <Description>SQLite batch transaction ingestion sink for FastIngest using prepared statements.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

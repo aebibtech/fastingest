@@ -10,6 +10,7 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <Description>Azure Cosmos DB bulk ingestion sink for FastIngest using transactional batches and bulk executor.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>

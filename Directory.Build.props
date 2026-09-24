@@ -9,10 +9,11 @@
     <!-- Package Metadata -->
     <Authors>Paul Abib Camano</Authors>
     <Company>Aebibtech</Company>
+    <Description>High-performance streaming bulk data ingestion engine and sinks for .NET.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/aebibtech/fastingest</PackageProjectUrl>
     <RepositoryUrl>https://github.com/aebibtech/fastingest</RepositoryUrl>
-    <PackageTags>bulk-insert;postgres;csv;streaming;high-performance;npgsql;ingest</PackageTags>
+    <PackageTags>bulk-insert;bulk-copy;streaming;high-performance;ingest;dotnet;csharp;postgres;sqlserver;mysql;sqlite;mongodb;cosmosdb;elasticsearch</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>

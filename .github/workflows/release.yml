@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Build, Test & Publish to NuGet
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore FastIngest.sln
+
+      - name: Build Solution
+        run: dotnet build FastIngest.sln -c Release --no-restore
+
+      - name: Run Tests
+        run: dotnet test FastIngest.sln -c Release --no-build --verbosity normal
+
+      - name: Pack NuGet Packages
+        run: dotnet pack FastIngest.sln -c Release --no-build -o ./artifacts
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            ./artifacts/*.nupkg
+            ./artifacts/*.snupkg
+          if-no-files-found: error
+
+      - name: Authenticate with NuGet (Trusted Publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USERNAME || 'aebibtech' }}
+
+      - name: Publish Packages to NuGet.org
+        run: |
+          for pkg in ./artifacts/*.nupkg; do
+            echo "Publishing $(basename "$pkg") to NuGet.org via Trusted Publishing..."
+            dotnet nuget push "$pkg" \
+              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --skip-duplicate
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: |
+            ./artifacts/*.nupkg
+            ./artifacts/*.snupkg
+          generate_release_notes: true

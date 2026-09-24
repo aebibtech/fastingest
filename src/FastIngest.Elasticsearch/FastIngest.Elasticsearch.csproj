@@ -10,6 +10,7 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <Description>Elasticsearch bulk indexing sink for FastIngest using Elastic.Clients.Elasticsearch.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
