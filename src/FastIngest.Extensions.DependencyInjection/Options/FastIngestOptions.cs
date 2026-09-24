@@ -1,0 +1,37 @@
+using FastIngest.Core.Common;
+
+namespace FastIngest.Extensions.DependencyInjection.Options;
+
+/// <summary>
+/// Configuration options for FastIngest dependency injection and execution engine.
+/// </summary>
+public class FastIngestOptions
+{
+    /// <summary>
+    /// Gets or sets the default PostgreSQL connection string used when not specified in the profile.
+    /// </summary>
+    public string? DefaultConnectionString { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default batch size when not specified in the profile. Defaults to 5,000.
+    /// </summary>
+    public int DefaultBatchSize { get; set; } = 5000;
+
+    /// <summary>
+    /// Gets or sets the default error handling strategy. Defaults to <see cref="ErrorStrategy.FailFast"/>.
+    /// </summary>
+    public ErrorStrategy DefaultErrorStrategy { get; set; } = ErrorStrategy.FailFast;
+
+    /// <summary>
+    /// Configures the default PostgreSQL connection string.
+    /// </summary>
+    /// <param name="connectionString">The PostgreSQL connection string.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddPostgreSqlSink(string connectionString)
+    {
+        DefaultConnectionString = string.IsNullOrWhiteSpace(connectionString)
+            ? throw new ArgumentNullException(nameof(connectionString))
+            : connectionString;
+        return this;
+    }
+}

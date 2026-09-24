@@ -28,6 +28,13 @@ public interface IFastIngestPipeline<TRecord>
     IFastIngestPipeline<TRecord> WithMapping(Action<ColumnMappingBuilder<TRecord>> configure);
 
     /// <summary>
+    /// Configures the pre-compiled column mappings directly on the pipeline.
+    /// </summary>
+    /// <param name="mappings">The pre-compiled collection of column mappings.</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> WithMappings(IReadOnlyList<ColumnMapping<TRecord>> mappings);
+
+    /// <summary>
     /// Registers a FluentValidation validator to validate each parsed record prior to writing to the sink.
     /// </summary>
     /// <typeparam name="TValidator">The concrete validator type implementing <see cref="IValidator{TRecord}"/> with a parameterless constructor.</typeparam>

@@ -22,6 +22,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     private FileType _fileType = FileType.AutoDetect;
     private readonly ColumnMappingBuilder<TRecord> _mappingBuilder = new();
     private bool _hasCustomMapping;
+    private IReadOnlyList<ColumnMapping<TRecord>>? _customMappings;
     private IValidator<TRecord>? _validator;
     private ValidationOptions _validationOptions = new();
     private int _batchSize = 5000;
@@ -47,6 +48,13 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         ArgumentNullException.ThrowIfNull(configure);
         configure(_mappingBuilder);
         _hasCustomMapping = true;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> WithMappings(IReadOnlyList<ColumnMapping<TRecord>> mappings)
+    {
+        _customMappings = mappings ?? throw new ArgumentNullException(nameof(mappings));
         return this;
     }
 
@@ -93,6 +101,11 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     /// <inheritdoc/>
     public IReadOnlyList<ColumnMapping<TRecord>> GetMappings()
     {
+        if (_customMappings != null)
+        {
+            return _customMappings;
+        }
+
         return _hasCustomMapping ? _mappingBuilder.Build() : ColumnMappingBuilder<TRecord>.CreateDefaultMappings();
     }
 
