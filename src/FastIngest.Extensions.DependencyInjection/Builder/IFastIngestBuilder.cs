@@ -22,6 +22,13 @@ public interface IFastIngestBuilder
     IFastIngestBuilder AddPostgreSqlSink(string connectionString);
 
     /// <summary>
+    /// Configures the default Microsoft SQL Server connection string for the FastIngest engine.
+    /// </summary>
+    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddSqlServerSink(string connectionString);
+
+    /// <summary>
     /// Discovers and registers all concrete <see cref="IFastIngestProfile"/> classes in the specified assembly.
     /// </summary>
     /// <param name="assembly">The assembly to scan for profiles.</param>

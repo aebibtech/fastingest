@@ -76,6 +76,70 @@ public static class FastIngestServiceExtensions
     }
 
     /// <summary>
+    /// Configures Microsoft SQL Server bulk copy sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddSqlServerSink(this FastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Microsoft SQL Server bulk copy sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddSqlServerSink(this IFastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default Microsoft SQL Server connection string for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddSqlServerSink(
+        this FastIngestBuilder builder,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures the default Microsoft SQL Server connection string for FastIngest.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSqlServerSink(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return services;
+    }
+
+    /// <summary>
     /// Configures the default PostgreSQL connection string for FastIngest.
     /// </summary>
     /// <param name="services">The application service collection.</param>

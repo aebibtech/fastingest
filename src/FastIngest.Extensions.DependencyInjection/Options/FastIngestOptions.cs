@@ -34,4 +34,17 @@ public class FastIngestOptions
             : connectionString;
         return this;
     }
+
+    /// <summary>
+    /// Configures the default Microsoft SQL Server connection string.
+    /// </summary>
+    /// <param name="connectionString">The SQL Server connection string.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddSqlServerSink(string connectionString)
+    {
+        DefaultConnectionString = string.IsNullOrWhiteSpace(connectionString)
+            ? throw new ArgumentNullException(nameof(connectionString))
+            : connectionString;
+        return this;
+    }
 }

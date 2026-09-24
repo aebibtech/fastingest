@@ -40,6 +40,19 @@ public class FastIngestBuilder : IFastIngestBuilder
     }
 
     /// <inheritdoc/>
+    public IFastIngestBuilder AddSqlServerSink(string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        Services.Configure<FastIngestOptions>(options =>
+        {
+            options.DefaultConnectionString = connectionString;
+        });
+
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IFastIngestBuilder RegisterProfilesFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);

@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastIngest.Core\FastIngest.Core.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.PostgreSql\FastIngest.PostgreSql.csproj" />
+    <ProjectReference Include="..\..\src\FastIngest.SqlServer\FastIngest.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.Extensions.DependencyInjection\FastIngest.Extensions.DependencyInjection.csproj" />
   </ItemGroup>
 
