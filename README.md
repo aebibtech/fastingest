@@ -4,41 +4,42 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NuGet](https://img.shields.io/nuget/v/FastIngest.Core.svg)](https://www.nuget.org/packages/FastIngest.Core)
 
-**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV/XLSX to PostgreSQL, SQL Server, and MongoDB). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
+**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV/XLSX to PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, concurrent producer-consumer bounded channels, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
 
 ---
 
 ## Architecture Overview
 
-FastIngest processes incoming tabular data using a pipeline pattern that keeps memory usage constant regardless of file size:
+FastIngest processes incoming tabular data using a decoupled producer-consumer pipeline that keeps memory usage constant ($O(1)$) regardless of file size:
 
 ```
 Stream (CSV / XLSX)
         │
         ▼
-┌───────────────────────────────┐
-│ Sylvan Zero-Allocation Reader │  <-- Constant-memory row streaming
-└──────────────┬────────────────┘
+┌─────────────────────────────────┐
+│ Producer: Sylvan Stream Reader  │  <-- Zero-allocation row streaming (CPU)
+└──────────────┬──────────────────┘
                │
                ▼
-┌───────────────────────────────┐
-│ Expression-based Mapper       │  <-- Strongly-typed record mapping
-└──────────────┬────────────────┘
+┌─────────────────────────────────┐
+│ Producer: Expression Mapper     │  <-- Zero-reflection property binding
+└──────────────┬──────────────────┘
                │
                ▼
-┌───────────────────────────────┐
-│ FluentValidation Engine       │  <-- FailFast or CollectAndContinue
-└──────────────┬────────────────┘
+┌─────────────────────────────────┐
+│ Producer: FluentValidation      │  <-- FailFast or CollectAndContinue
+└──────────────┬──────────────────┘
                │
                ▼
-┌───────────────────────────────┐
-│ Bounded Channels Pipeline     │  <-- System.Threading.Channels backpressure
-└──────────────┬────────────────┘
+┌─────────────────────────────────┐
+│ System.Threading.Channels       │  <-- Bounded channel (Capacity: 2 batches)
+│ (BoundedChannelFullMode.Wait)   │  <-- Backpressure: strict O(1) memory
+└──────────────┬──────────────────┘
                │
                ▼
-┌───────────────────────────────┐
-│ Native Database COPY Sink     │  <-- High-throughput batch streaming
-└───────────────────────────────┘
+┌─────────────────────────────────┐
+│ Consumer: Native Database Sink  │  <-- High-throughput batch streaming (I/O)
+└─────────────────────────────────┘
 ```
 
 ---
@@ -47,11 +48,11 @@ Stream (CSV / XLSX)
 
 - **Concurrent Producer-Consumer Pipelining**: Decouples CPU parsing/validation from database I/O socket operations using bounded `System.Threading.Channels` with backpressure.
 - **Constant-Memory Streaming**: Stream arbitrarily large files (gigabytes to tens of gigabytes) with strict $O(1)$ memory guarantees.
-- **Native Database COPY**: High-speed binary ingestion utilizing PostgreSQL `COPY ... FROM STDIN (FORMAT BINARY)`.
+- **7 Native Database Sinks**: Direct bulk protocol integrations for PostgreSQL (`COPY`), SQL Server (`SqlBulkCopy`), MySQL (`MySqlBulkCopy`), SQLite (`WAL`), MongoDB (`BulkWriteAsync`), Azure Cosmos DB, and Elasticsearch.
 - **Validation Strategies**:
   - `FailFast`: Immediately halts ingestion on the first invalid record.
   - `CollectAndContinue`: Collects invalid row details and exports an error report CSV while allowing valid records to proceed.
-- **Fluent Pipeline API**: Composable, chainable pipeline configuration with channel capacity tuning and progress tracking.
+- **Fluent Pipeline API**: Composable, chainable pipeline configuration with channel capacity tuning (`WithChannelCapacity`) and progress tracking.
 - **SemVer 2.0 Driven by Git Tags**: Automated versioning via MinVer and seamless CI/CD publishing.
 
 ---
@@ -109,6 +110,7 @@ var result = await FastIngestPipeline<CustomerRecord>.Create()
         options.ErrorStrategy = ErrorStrategy.CollectAndContinue;
     })
     .WithBatchSize(5000)
+    .WithChannelCapacity(2)
     .OnProgress(progress =>
     {
         Console.WriteLine($"Processed {progress.RowsProcessed} rows ({progress.PercentComplete:F1}%)...");
@@ -152,11 +154,16 @@ Official **BenchmarkDotNet** suite results comparing FastIngest streaming binary
 ├── FastIngest.sln
 ├── benchmarks/
 │   └── FastIngest.Benchmarks/     # BenchmarkDotNet performance suite
+├── docs/                          # VitePress documentation website
 ├── src/
-│   ├── FastIngest.Core/           # Core interfaces, pipeline, and CSV parsers
+│   ├── FastIngest.Core/           # Core pipeline, channels, binders, and streaming readers
 │   ├── FastIngest.PostgreSql/     # PostgreSQL native binary COPY sink
 │   ├── FastIngest.SqlServer/      # Microsoft SQL Server SqlBulkCopy sink
+│   ├── FastIngest.MySql/          # MySQL MySqlBulkCopy sink
+│   ├── FastIngest.Sqlite/         # SQLite WAL batch sink
 │   ├── FastIngest.MongoDb/        # MongoDB unordered BulkWrite sink
+│   ├── FastIngest.CosmosDb/       # Azure Cosmos DB bulk executor sink
+│   ├── FastIngest.Elasticsearch/  # Elasticsearch BulkAsync sink
 │   └── FastIngest.Extensions.DependencyInjection/ # Engine, DI, and profile registry
 ├── samples/
 │   └── FastIngest.SampleApi/      # Minimal Web API demonstrating ingestion
