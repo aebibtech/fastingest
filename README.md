@@ -1,6 +1,6 @@
 # FastIngest
 
-[![CI/CD](https://github.com/paulcamano/fastingest/actions/workflows/ci.yml/badge.svg)](https://github.com/paulcamano/fastingest/actions/workflows/ci.yml)
+[![CI/CD](https://github.com/aebibtech/fastingest/actions/workflows/ci.yml/badge.svg)](https://github.com/aebibtech/fastingest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NuGet](https://img.shields.io/nuget/v/FastIngest.Core.svg)](https://www.nuget.org/packages/FastIngest.Core)
 
@@ -144,4 +144,4 @@ if (!result.IsSuccess)
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Developed & Maintained by **Paul Abib Camano** ([Aebibtech](https://github.com/paulcamano)).
+Developed & Maintained by **Paul Abib Camano** ([Aebibtech](https://github.com/aebibtech)).

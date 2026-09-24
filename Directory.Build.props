@@ -10,8 +10,8 @@
     <Authors>Paul Abib Camano</Authors>
     <Company>Aebibtech</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/paulcamano/fastingest</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/paulcamano/fastingest</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/aebibtech/fastingest</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/aebibtech/fastingest</RepositoryUrl>
     <PackageTags>bulk-insert;postgres;csv;streaming;high-performance;npgsql;ingest</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
