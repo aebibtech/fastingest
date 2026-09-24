@@ -7,8 +7,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!-- Package Metadata -->
-    <Authors>Paul Camano</Authors>
-    <Company>StewardAxis LLC</Company>
+    <Authors>Paul Abib Camano</Authors>
+    <Company>Aebibtech</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/paulcamano/fastingest</PackageProjectUrl>
     <RepositoryUrl>https://github.com/paulcamano/fastingest</RepositoryUrl>

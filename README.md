@@ -144,4 +144,4 @@ if (!result.IsSuccess)
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Developed & Maintained by **Paul Camano** ([StewardAxis LLC](https://github.com/paulcamano)).
+Developed & Maintained by **Paul Abib Camano** ([Aebibtech](https://github.com/paulcamano)).
