@@ -14,6 +14,7 @@
     <ProjectReference Include="..\FastIngest.MySql\FastIngest.MySql.csproj" />
     <ProjectReference Include="..\FastIngest.Sqlite\FastIngest.Sqlite.csproj" />
     <ProjectReference Include="..\FastIngest.CosmosDb\FastIngest.CosmosDb.csproj" />
+    <ProjectReference Include="..\FastIngest.Elasticsearch\FastIngest.Elasticsearch.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

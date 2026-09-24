@@ -100,6 +100,44 @@ public interface IFastIngestBuilder
     IFastIngestBuilder AddCosmosDbSink(Microsoft.Azure.Cosmos.Container container);
 
     /// <summary>
+    /// Configures Elasticsearch bulk sink capabilities for the FastIngest engine.
+    /// </summary>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddElasticsearchSink();
+
+    /// <summary>
+    /// Registers an existing <see cref="Elastic.Clients.Elasticsearch.ElasticsearchClient"/> instance for the FastIngest engine.
+    /// </summary>
+    /// <param name="client">The configured Elasticsearch client.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddElasticsearchSink(Elastic.Clients.Elasticsearch.ElasticsearchClient client);
+
+    /// <summary>
+    /// Configures Elasticsearch client settings using a configuration action.
+    /// </summary>
+    /// <param name="configureSettings">Action configuring <see cref="Elastic.Clients.Elasticsearch.ElasticsearchClientSettings"/>.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddElasticsearchSink(Action<Elastic.Clients.Elasticsearch.ElasticsearchClientSettings> configureSettings);
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI and optional API key.
+    /// </summary>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddElasticsearchSink(Uri endpoint, string? apiKey = null, string? defaultIndex = null);
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI string and optional API key.
+    /// </summary>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI string.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    IFastIngestBuilder AddElasticsearchSink(string endpoint, string? apiKey = null, string? defaultIndex = null);
+
+    /// <summary>
     /// Discovers and registers all concrete <see cref="IFastIngestProfile"/> classes in the specified assembly.
     /// </summary>
     /// <param name="assembly">The assembly to scan for profiles.</param>

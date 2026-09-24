@@ -151,4 +151,39 @@ public class FastIngestOptions
         CosmosContainerName = containerName;
         return this;
     }
+
+    /// <summary>
+    /// Gets or sets the default Elasticsearch endpoint URI string.
+    /// </summary>
+    public string? ElasticsearchEndpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default Elasticsearch API key.
+    /// </summary>
+    public string? ElasticsearchApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the default Elasticsearch index name.
+    /// </summary>
+    public string? ElasticsearchDefaultIndex { get; set; }
+
+    /// <summary>
+    /// Configures the default Elasticsearch connection settings.
+    /// </summary>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The options instance for fluent chaining.</returns>
+    public FastIngestOptions AddElasticsearchSink(
+        string endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ElasticsearchEndpoint = string.IsNullOrWhiteSpace(endpoint)
+            ? throw new ArgumentNullException(nameof(endpoint))
+            : endpoint;
+        ElasticsearchApiKey = apiKey;
+        ElasticsearchDefaultIndex = defaultIndex;
+        return this;
+    }
 }

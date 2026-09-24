@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\src\FastIngest.MySql\FastIngest.MySql.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.Sqlite\FastIngest.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.CosmosDb\FastIngest.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\src\FastIngest.Elasticsearch\FastIngest.Elasticsearch.csproj" />
   </ItemGroup>
 
 </Project>

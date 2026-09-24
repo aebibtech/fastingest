@@ -13,6 +13,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Elastic.Clients.Elasticsearch;
+using Elastic.Transport;
+using FastIngest.Elasticsearch;
 using MongoDB.Driver;
 using MySqlConnector;
 
@@ -864,6 +867,394 @@ public static class FastIngestServiceExtensions
             });
         }
 
+        return services;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddElasticsearchSink(this FastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.TryAddSingleton<ElasticsearchClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var endpoint = options.ElasticsearchEndpoint;
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                throw new InvalidOperationException(
+                    "Elasticsearch endpoint is not configured. Configure ElasticsearchEndpoint in FastIngestOptions, or register an ElasticsearchClient in DI.");
+            }
+
+            var settings = new ElasticsearchClientSettings(new Uri(endpoint));
+            if (!string.IsNullOrWhiteSpace(options.ElasticsearchApiKey))
+            {
+                settings.Authentication(new ApiKey(options.ElasticsearchApiKey));
+            }
+            return new ElasticsearchClient(settings);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch bulk sink capabilities for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddElasticsearchSink(this IFastIngestBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        if (builder is FastIngestBuilder concreteBuilder)
+        {
+            return concreteBuilder.AddElasticsearchSink();
+        }
+
+        builder.Services.TryAddSingleton<ElasticsearchClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FastIngestOptions>>().Value;
+            var endpoint = options.ElasticsearchEndpoint;
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                throw new InvalidOperationException(
+                    "Elasticsearch endpoint is not configured. Configure ElasticsearchEndpoint in FastIngestOptions, or register an ElasticsearchClient in DI.");
+            }
+
+            var settings = new ElasticsearchClientSettings(new Uri(endpoint));
+            if (!string.IsNullOrWhiteSpace(options.ElasticsearchApiKey))
+            {
+                settings.Authentication(new ApiKey(options.ElasticsearchApiKey));
+            }
+            return new ElasticsearchClient(settings);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="ElasticsearchClient"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="client">The configured Elasticsearch client.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddElasticsearchSink(
+        this FastIngestBuilder builder,
+        ElasticsearchClient client)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(client);
+
+        builder.Services.AddSingleton<ElasticsearchClient>(client);
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="ElasticsearchClient"/> instance for FastIngest.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="client">The configured Elasticsearch client.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddElasticsearchSink(
+        this IFastIngestBuilder builder,
+        ElasticsearchClient client)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(client);
+
+        builder.Services.AddSingleton<ElasticsearchClient>(client);
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch sink connection parameters via <see cref="ElasticsearchClientSettings"/>.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="configureSettings">Action configuring Elasticsearch client settings.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddElasticsearchSink(
+        this FastIngestBuilder builder,
+        Action<ElasticsearchClientSettings> configureSettings)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configureSettings);
+
+        builder.Services.TryAddSingleton<ElasticsearchClient>(_ =>
+        {
+            var settings = new ElasticsearchClientSettings();
+            configureSettings(settings);
+            return new ElasticsearchClient(settings);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch sink connection parameters via <see cref="ElasticsearchClientSettings"/>.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="configureSettings">Action configuring Elasticsearch client settings.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddElasticsearchSink(
+        this IFastIngestBuilder builder,
+        Action<ElasticsearchClientSettings> configureSettings)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configureSettings);
+
+        builder.Services.TryAddSingleton<ElasticsearchClient>(_ =>
+        {
+            var settings = new ElasticsearchClientSettings();
+            configureSettings(settings);
+            return new ElasticsearchClient(settings);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI and optional API key.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddElasticsearchSink(
+        this FastIngestBuilder builder,
+        Uri endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(endpoint);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.ElasticsearchEndpoint = endpoint.OriginalString;
+            options.ElasticsearchApiKey = apiKey;
+            if (defaultIndex != null)
+            {
+                options.ElasticsearchDefaultIndex = defaultIndex;
+            }
+        });
+
+        builder.Services.TryAddSingleton<ElasticsearchClient>(_ =>
+        {
+            var settings = new ElasticsearchClientSettings(endpoint);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                settings.Authentication(new ApiKey(apiKey));
+            }
+            return new ElasticsearchClient(settings);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI and optional API key.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddElasticsearchSink(
+        this IFastIngestBuilder builder,
+        Uri endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(endpoint);
+
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.ElasticsearchEndpoint = endpoint.OriginalString;
+            options.ElasticsearchApiKey = apiKey;
+            if (defaultIndex != null)
+            {
+                options.ElasticsearchDefaultIndex = defaultIndex;
+            }
+        });
+
+        builder.Services.TryAddSingleton<ElasticsearchClient>(_ =>
+        {
+            var settings = new ElasticsearchClientSettings(endpoint);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                settings.Authentication(new ApiKey(apiKey));
+            }
+            return new ElasticsearchClient(settings);
+        });
+
+        builder.Services.TryAddTransient(typeof(IIngestionSink<>), typeof(ElasticsearchIngestionSink<>));
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI string and optional API key.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder instance.</param>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI string.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static FastIngestBuilder AddElasticsearchSink(
+        this FastIngestBuilder builder,
+        string endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
+
+        AddElasticsearchSink(builder, new Uri(endpoint), apiKey, defaultIndex);
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.ElasticsearchEndpoint = endpoint;
+        });
+        return builder;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI string and optional API key.
+    /// </summary>
+    /// <param name="builder">The FastIngest builder interface instance.</param>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI string.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
+    public static IFastIngestBuilder AddElasticsearchSink(
+        this IFastIngestBuilder builder,
+        string endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
+
+        builder.AddElasticsearchSink(new Uri(endpoint), apiKey, defaultIndex);
+        builder.Services.Configure<FastIngestOptions>(options =>
+        {
+            options.ElasticsearchEndpoint = endpoint;
+        });
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an existing <see cref="ElasticsearchClient"/> instance on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="client">The configured Elasticsearch client.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddElasticsearchSink(
+        this IServiceCollection services,
+        ElasticsearchClient client)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(client);
+
+        services.AddSingleton<ElasticsearchClient>(client);
+        return services;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch sink connection parameters via <see cref="ElasticsearchClientSettings"/> on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="configureSettings">Action configuring Elasticsearch client settings.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddElasticsearchSink(
+        this IServiceCollection services,
+        Action<ElasticsearchClientSettings> configureSettings)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureSettings);
+
+        services.TryAddSingleton<ElasticsearchClient>(_ =>
+        {
+            var settings = new ElasticsearchClientSettings();
+            configureSettings(settings);
+            return new ElasticsearchClient(settings);
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI and optional API key on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddElasticsearchSink(
+        this IServiceCollection services,
+        Uri endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(endpoint);
+
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.ElasticsearchEndpoint = endpoint.OriginalString;
+            options.ElasticsearchApiKey = apiKey;
+            if (defaultIndex != null)
+            {
+                options.ElasticsearchDefaultIndex = defaultIndex;
+            }
+        });
+
+        services.TryAddSingleton<ElasticsearchClient>(_ =>
+        {
+            var settings = new ElasticsearchClientSettings(endpoint);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                settings.Authentication(new ApiKey(apiKey));
+            }
+            return new ElasticsearchClient(settings);
+        });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures Elasticsearch connection settings with an endpoint URI string and optional API key on <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="endpoint">The Elasticsearch server endpoint URI string.</param>
+    /// <param name="apiKey">Optional API key for authentication.</param>
+    /// <param name="defaultIndex">Optional default index name.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddElasticsearchSink(
+        this IServiceCollection services,
+        string endpoint,
+        string? apiKey = null,
+        string? defaultIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
+
+        services.AddElasticsearchSink(new Uri(endpoint), apiKey, defaultIndex);
+        services.Configure<FastIngestOptions>(options =>
+        {
+            options.ElasticsearchEndpoint = endpoint;
+        });
         return services;
     }
 

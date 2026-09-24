@@ -123,6 +123,41 @@ public class FastIngestBuilder : IFastIngestBuilder
     }
 
     /// <inheritdoc/>
+    public IFastIngestBuilder AddElasticsearchSink()
+    {
+        FastIngestServiceExtensions.AddElasticsearchSink(this);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddElasticsearchSink(Elastic.Clients.Elasticsearch.ElasticsearchClient client)
+    {
+        FastIngestServiceExtensions.AddElasticsearchSink(this, client);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddElasticsearchSink(Action<Elastic.Clients.Elasticsearch.ElasticsearchClientSettings> configureSettings)
+    {
+        FastIngestServiceExtensions.AddElasticsearchSink(this, configureSettings);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddElasticsearchSink(Uri endpoint, string? apiKey = null, string? defaultIndex = null)
+    {
+        FastIngestServiceExtensions.AddElasticsearchSink(this, endpoint, apiKey, defaultIndex);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestBuilder AddElasticsearchSink(string endpoint, string? apiKey = null, string? defaultIndex = null)
+    {
+        FastIngestServiceExtensions.AddElasticsearchSink(this, endpoint, apiKey, defaultIndex);
+        return this;
+    }
+
+    /// <inheritdoc/>
     public IFastIngestBuilder RegisterProfilesFromAssembly(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
