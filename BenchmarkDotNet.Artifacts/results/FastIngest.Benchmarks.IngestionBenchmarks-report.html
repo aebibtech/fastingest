@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8' />
-<title>FastIngest.Benchmarks.IngestionBenchmarks-20260924-211522</title>
+<title>FastIngest.Benchmarks.IngestionBenchmarks-20260924-222636</title>
 
 <style type="text/css">
 	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
@@ -26,12 +26,12 @@ RunStrategy=ColdStart  UnrollFactor=1  WarmupCount=1
 <table>
 <thead><tr><th>Method       </th><th>RowCount</th><th>Mean</th><th>Error</th><th>Ratio</th><th>Rank</th><th>Gen0 </th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
 </tr>
-</thead><tbody><tr><td>FastIngest_Pipeline</td><td>25000</td><td>178.7 ms</td><td>NA</td><td>0.17</td><td>1</td><td>2000.0000</td><td>1000.0000</td><td>-</td><td>18.44 MB</td><td>0.08</td>
-</tr><tr><td>EfCore_Batched</td><td>25000</td><td>1,033.0 ms</td><td>NA</td><td>0.97</td><td>2</td><td>25000.0000</td><td>12000.0000</td><td>3000.0000</td><td>207.63 MB</td><td>0.94</td>
-</tr><tr><td>EfCore_Naive</td><td>25000</td><td>1,067.0 ms</td><td>NA</td><td>1.00</td><td>3</td><td>25000.0000</td><td>9000.0000</td><td>2000.0000</td><td>219.95 MB</td><td>1.00</td>
-</tr><tr><td>FastIngest_Pipeline</td><td>100000</td><td>496.6 ms</td><td>NA</td><td>0.17</td><td>1</td><td>9000.0000</td><td>3000.0000</td><td>-</td><td>72.81 MB</td><td>0.08</td>
-</tr><tr><td>EfCore_Batched</td><td>100000</td><td>2,592.3 ms</td><td>NA</td><td>0.91</td><td>2</td><td>107000.0000</td><td>53000.0000</td><td>17000.0000</td><td>825.18 MB</td><td>0.94</td>
-</tr><tr><td>EfCore_Naive</td><td>100000</td><td>2,843.0 ms</td><td>NA</td><td>1.00</td><td>3</td><td>95000.0000</td><td>32000.0000</td><td>3000.0000</td><td>876.09 MB</td><td>1.00</td>
+</thead><tbody><tr><td>FastIngest_Pipeline</td><td>25000</td><td>143.2 ms</td><td>NA</td><td>0.14</td><td>1</td><td>2000.0000</td><td>1000.0000</td><td>-</td><td>18.64 MB</td><td>0.08</td>
+</tr><tr><td>EfCore_Naive</td><td>25000</td><td>1,029.0 ms</td><td>NA</td><td>1.00</td><td>2</td><td>25000.0000</td><td>9000.0000</td><td>2000.0000</td><td>222.15 MB</td><td>1.00</td>
+</tr><tr><td>EfCore_Batched</td><td>25000</td><td>1,190.8 ms</td><td>NA</td><td>1.16</td><td>3</td><td>26000.0000</td><td>12000.0000</td><td>3000.0000</td><td>210.1 MB</td><td>0.95</td>
+</tr><tr><td>FastIngest_Pipeline</td><td>100000</td><td>439.6 ms</td><td>NA</td><td>0.16</td><td>1</td><td>10000.0000</td><td>4000.0000</td><td>1000.0000</td><td>73.59 MB</td><td>0.08</td>
+</tr><tr><td>EfCore_Batched</td><td>100000</td><td>2,442.1 ms</td><td>NA</td><td>0.91</td><td>2</td><td>107000.0000</td><td>53000.0000</td><td>17000.0000</td><td>825.17 MB</td><td>0.94</td>
+</tr><tr><td>EfCore_Naive</td><td>100000</td><td>2,691.6 ms</td><td>NA</td><td>1.00</td><td>3</td><td>95000.0000</td><td>32000.0000</td><td>3000.0000</td><td>876.09 MB</td><td>1.00</td>
 </tr></tbody></table>
 </body>
 </html>

@@ -22,18 +22,18 @@ Automated benchmark runs generated directly using **BenchmarkDotNet v0.15.8** on
 
 | Method | RowCount | Mean | Ratio | Rank | Gen 0 | Gen 1 | Gen 2 | Allocated | Alloc Ratio |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **FastIngest_Pipeline** | **25,000** | **178.7 ms** | **0.17** | **1** | **2,000** | **1,000** | **-** | **18.44 MB** | **0.08** |
-| EfCore_Batched | 25,000 | 1,033.0 ms | 0.97 | 2 | 25,000 | 12,000 | 3,000 | 207.63 MB | 0.94 |
-| EfCore_Naive | 25,000 | 1,067.0 ms | 1.00 | 3 | 25,000 | 9,000 | 2,000 | 219.95 MB | 1.00 |
+| **FastIngest_Pipeline** | **25,000** | **143.2 ms** | **0.14** | **1** | **2,000** | **1,000** | **-** | **18.64 MB** | **0.08** |
+| EfCore_Naive (Baseline) | 25,000 | 1,029.0 ms | 1.00 | 2 | 25,000 | 9,000 | 2,000 | 222.15 MB | 1.00 |
+| EfCore_Batched | 25,000 | 1,190.8 ms | 1.16 | 3 | 26,000 | 12,000 | 3,000 | 210.10 MB | 0.95 |
 | | | | | | | | | | |
-| **FastIngest_Pipeline** | **100,000** | **496.6 ms** | **0.17** | **1** | **9,000** | **3,000** | **-** | **72.81 MB** | **0.08** |
-| EfCore_Batched | 100,000 | 2,592.3 ms | 0.91 | 2 | 107,000 | 53,000 | 17,000 | 825.18 MB | 0.94 |
-| EfCore_Naive | 100,000 | 2,843.0 ms | 1.00 | 3 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
+| **FastIngest_Pipeline** | **100,000** | **439.6 ms** | **0.16** | **1** | **10,000** | **4,000** | **1,000** | **73.59 MB** | **0.08** |
+| EfCore_Batched | 100,000 | 2,442.1 ms | 0.91 | 2 | 107,000 | 53,000 | 17,000 | 825.17 MB | 0.94 |
+| EfCore_Naive (Baseline) | 100,000 | 2,691.6 ms | 1.00 | 3 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
 
 ### Benchmark Analysis:
-- **5.7x to 5.9x Higher Throughput**: FastIngest processes 100,000 rows in ~496 ms versus 2,843 ms for naive EF Core and 2,592 ms for batched EF Core.
-- **92% Heap Allocation Reduction**: FastIngest allocates only **72.8 MB** (0.08 ratio) versus **876 MB** in EF Core Naive and **825 MB** in EF Core Batched for 100,000 records.
-- **Zero Gen 2 Garbage Collections**: FastIngest avoids long-lived heap object promotions, registering **0** Gen 2 collections across all tests compared to up to 17,000 Gen 2 triggers in batched EF Core.
+- **6.1x to 7.2x Higher Throughput**: FastIngest with concurrent channel pipelining processes 100,000 rows in ~440 ms (vs. 2,692 ms for naive EF Core) and 25,000 rows in ~143 ms (vs. 1,029 ms for naive EF Core).
+- **92% Heap Allocation Reduction**: FastIngest allocates only **73.6 MB** (0.08 ratio) versus **876 MB** in EF Core Naive and **825 MB** in EF Core Batched for 100,000 records.
+- **Concurrent Channel Pipelining Advantage**: Decoupling Sylvan row parsing from binary COPY socket transmission via `System.Threading.Channels` reduced latency from 178.7 ms to 143.2 ms on 25k rows (~20% improvement) and from 496.6 ms to 439.6 ms on 100k rows (~11.5% improvement).
 
 To run these benchmarks locally, execute:
 ```bash

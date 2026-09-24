@@ -134,13 +134,13 @@ Official **BenchmarkDotNet** suite results comparing FastIngest streaming binary
 
 | Method | RowCount | Mean | Ratio | Gen 0 | Gen 1 | Gen 2 | Allocated | Alloc Ratio |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **FastIngest_Pipeline** | **25,000** | **178.7 ms** | **0.17 (5.9x faster)** | **2,000** | **1,000** | **-** | **18.44 MB** | **0.08 (-92%)** |
-| EfCore_Batched (1k) | 25,000 | 1,033.0 ms | 0.97 | 25,000 | 12,000 | 3,000 | 207.63 MB | 0.94 |
-| EfCore_Naive (Baseline) | 25,000 | 1,067.0 ms | 1.00 | 25,000 | 9,000 | 2,000 | 219.95 MB | 1.00 |
+| **FastIngest_Pipeline** | **25,000** | **143.2 ms** | **0.14 (7.2x faster)** | **2,000** | **1,000** | **-** | **18.64 MB** | **0.08 (-92%)** |
+| EfCore_Naive (Baseline) | 25,000 | 1,029.0 ms | 1.00 | 25,000 | 9,000 | 2,000 | 222.15 MB | 1.00 |
+| EfCore_Batched (1k) | 25,000 | 1,190.8 ms | 1.16 | 26,000 | 12,000 | 3,000 | 210.10 MB | 0.95 |
 | | | | | | | | | |
-| **FastIngest_Pipeline** | **100,000** | **496.6 ms** | **0.17 (5.7x faster)** | **9,000** | **3,000** | **-** | **72.81 MB** | **0.08 (-92%)** |
-| EfCore_Batched (1k) | 100,000 | 2,592.3 ms | 0.91 | 107,000 | 53,000 | 17,000 | 825.18 MB | 0.94 |
-| EfCore_Naive (Baseline) | 100,000 | 2,843.0 ms | 1.00 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
+| **FastIngest_Pipeline** | **100,000** | **439.6 ms** | **0.16 (6.1x faster)** | **10,000** | **4,000** | **1,000** | **73.59 MB** | **0.08 (-92%)** |
+| EfCore_Batched (1k) | 100,000 | 2,442.1 ms | 0.91 | 107,000 | 53,000 | 17,000 | 825.17 MB | 0.94 |
+| EfCore_Naive (Baseline) | 100,000 | 2,691.6 ms | 1.00 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
 
 *Run the benchmarks yourself with `./benchmarks/run-benchmarks.sh`. See full analysis in [`docs/benchmarks/performance.md`](docs/benchmarks/performance.md).*
 
