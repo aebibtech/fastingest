@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure OpenAPI specification support for .NET 9
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -18,17 +19,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Ingest CSV endpoint demonstration
+// Sample ingestion endpoint accepting CSV file uploads and streaming records through FastIngest.
 app.MapPost("/api/ingest/customers", async (IFormFile file, CancellationToken ct) =>
 {
     if (file == null || file.Length == 0)
     {
-        return Results.BadRequest(new { message = "No file uploaded." });
+        return Results.BadRequest(new { message = "No file uploaded or file is empty." });
     }
 
+    // Stream directly from upload without saving file to disk or buffering whole content in memory
     await using var stream = file.OpenReadStream();
+
+    // Use in-memory sink for local demonstration (in production, use WriteToPostgresAsync)
     var sink = new InMemorySink<CustomerRecord>();
 
+    // Configure and execute the streaming ingestion pipeline
     var result = await FastIngestPipeline<CustomerRecord>.Create()
         .FromStream(stream, FileType.Csv)
         .WithMapping(mapping =>
@@ -40,6 +45,7 @@ app.MapPost("/api/ingest/customers", async (IFormFile file, CancellationToken ct
         })
         .ValidateWith<CustomerValidator>(options =>
         {
+            // Collect invalid records and continue processing valid rows
             options.ErrorStrategy = ErrorStrategy.CollectAndContinue;
         })
         .WithBatchSize(1000)
@@ -65,8 +71,14 @@ app.MapPost("/api/ingest/customers", async (IFormFile file, CancellationToken ct
 
 app.Run();
 
+/// <summary>
+/// Domain record representing an imported customer row.
+/// </summary>
 public record CustomerRecord(int Id, string Email, string FullName, decimal Balance);
 
+/// <summary>
+/// FluentValidation rules applied to each parsed customer record.
+/// </summary>
 public class CustomerValidator : AbstractValidator<CustomerRecord>
 {
     public CustomerValidator()
@@ -77,6 +89,9 @@ public class CustomerValidator : AbstractValidator<CustomerRecord>
     }
 }
 
+/// <summary>
+/// In-memory sink implementation for demo and testing purposes.
+/// </summary>
 public class InMemorySink<T> : IIngestionSink<T>
 {
     public List<T> Records { get; } = new();

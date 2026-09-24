@@ -11,6 +11,11 @@ using Sylvan.Data.Csv;
 
 namespace FastIngest.Core.Pipeline;
 
+/// <summary>
+/// High-throughput, constant-memory streaming ingestion pipeline for .NET.
+/// Parses tabular data row-by-row and streams batches directly to destination sinks.
+/// </summary>
+/// <typeparam name="TRecord">The model type representing an ingested record.</typeparam>
 public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
 {
     private Stream? _stream;
@@ -22,8 +27,13 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     private int _batchSize = 5000;
     private Action<IngestProgress>? _progressCallback;
 
+    /// <summary>
+    /// Creates a new fluent pipeline builder instance for <typeparamref name="TRecord"/>.
+    /// </summary>
+    /// <returns>A new <see cref="FastIngestPipeline{TRecord}"/> instance.</returns>
     public static FastIngestPipeline<TRecord> Create() => new();
 
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> FromStream(Stream stream, FileType fileType = FileType.AutoDetect)
     {
         _stream = stream ?? throw new ArgumentNullException(nameof(stream));
@@ -31,6 +41,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         return this;
     }
 
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> WithMapping(Action<ColumnMappingBuilder<TRecord>> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -39,6 +50,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         return this;
     }
 
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> ValidateWith<TValidator>(Action<ValidationOptions>? configure = null)
         where TValidator : IValidator<TRecord>, new()
     {
@@ -51,6 +63,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         return this;
     }
 
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> ValidateWith(IValidator<TRecord> validator, Action<ValidationOptions>? configure = null)
     {
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
@@ -62,6 +75,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         return this;
     }
 
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> WithBatchSize(int batchSize = 5000)
     {
         if (batchSize <= 0) throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be greater than zero.");
@@ -69,17 +83,20 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         return this;
     }
 
+    /// <inheritdoc/>
     public IFastIngestPipeline<TRecord> OnProgress(Action<IngestProgress> callback)
     {
         _progressCallback = callback ?? throw new ArgumentNullException(nameof(callback));
         return this;
     }
 
+    /// <inheritdoc/>
     public IReadOnlyList<ColumnMapping<TRecord>> GetMappings()
     {
         return _hasCustomMapping ? _mappingBuilder.Build() : ColumnMappingBuilder<TRecord>.CreateDefaultMappings();
     }
 
+    /// <inheritdoc/>
     public async Task<IngestResult> WriteToSinkAsync(IIngestionSink<TRecord> sink, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sink);
@@ -96,6 +113,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         long totalSucceeded = 0;
         long totalFailed = 0;
 
+        // Initialize zero-allocation Sylvan CsvDataReader over stream
         using var streamReader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 65536, leaveOpen: true);
         var csvOptions = new CsvDataReaderOptions
         {
@@ -104,23 +122,26 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
 
         using var csvReader = CsvDataReader.Create(streamReader, csvOptions);
 
-        // Header mapping
+        // Map column header names to zero-based ordinals for fast O(1) index lookups
         var headerOrdinals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < csvReader.FieldCount; i++)
         {
             headerOrdinals[csvReader.GetName(i)] = i;
         }
 
+        // Prepare high-performance binder (constructor-based for positional records or property-setter based)
         var binder = CreateRowBinder(mappings, headerOrdinals);
 
         long streamLength = _stream.CanSeek ? _stream.Length : 0;
 
+        // Streaming row-by-row iteration without loading whole dataset into memory
         while (await csvReader.ReadAsync(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             totalProcessed++;
             long rowIndex = totalProcessed;
 
+            // Attempt to materialize TRecord from current CSV row
             bool rowMaterialized = binder.TryMaterialize(csvReader, rowIndex, out var record, out var materializationErrors);
 
             if (!rowMaterialized)
@@ -138,6 +159,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
                 continue;
             }
 
+            // Execute FluentValidation rules if configured
             if (_validator != null && record != null)
             {
                 var validationResult = await _validator.ValidateAsync(record, cancellationToken);
@@ -167,6 +189,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
                 totalSucceeded++;
             }
 
+            // Flush chunk batch when threshold reached
             if (batch.Count >= _batchSize)
             {
                 await sink.WriteBatchAsync(batch, cancellationToken);
@@ -180,24 +203,29 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
             }
         }
 
+        // Flush remaining trailing records
         if (batch.Count > 0)
         {
             await sink.WriteBatchAsync(batch, cancellationToken);
             batch.Clear();
         }
 
+        // Final progress report at 100%
         _progressCallback?.Invoke(new IngestProgress(totalProcessed, totalSucceeded, totalFailed, 100.0));
 
         return new IngestResult(totalProcessed, totalSucceeded, totalFailed, errors);
     }
 
+    /// <summary>
+    /// Inspects the target type constructors and properties to generate an optimized binder.
+    /// </summary>
     private static IRowBinder<TRecord> CreateRowBinder(
         IReadOnlyList<ColumnMapping<TRecord>> mappings,
         Dictionary<string, int> headerOrdinals)
     {
         var recordType = typeof(TRecord);
 
-        // Find candidate constructors
+        // Inspect public constructors (preferring parameterized constructors for positional records)
         var constructors = recordType.GetConstructors(BindingFlags.Public | BindingFlags.Instance)
             .OrderByDescending(c => c.GetParameters().Length)
             .ToList();
@@ -207,7 +235,6 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
             var parameters = ctor.GetParameters();
             if (parameters.Length == 0) continue;
 
-            // Check if all parameters can be resolved from mappings
             var paramBindings = new List<(ParameterInfo Parameter, int Ordinal, string ColumnName)>();
             bool allMatched = true;
 
@@ -258,7 +285,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
             }
         }
 
-        // Fallback to property setter binder
+        // Fallback to property setter binder for mutable POCOs
         var propertyBindings = new List<(ColumnMapping<TRecord> Mapping, int Ordinal)>();
         foreach (var mapping in mappings)
         {
@@ -285,11 +312,17 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         return new PropertySetterRowBinder<TRecord>(propertyBindings);
     }
 
+    /// <summary>
+    /// Internal row materialization abstraction.
+    /// </summary>
     private interface IRowBinder<T>
     {
         bool TryMaterialize(CsvDataReader reader, long rowIndex, out T? record, out List<IngestRowError> errors);
     }
 
+    /// <summary>
+    /// Materializes records using a parameterized constructor (e.g. C# positional records).
+    /// </summary>
     private sealed class ConstructorRowBinder<T> : IRowBinder<T>
     {
         private readonly ConstructorInfo _constructor;
@@ -349,6 +382,9 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         }
     }
 
+    /// <summary>
+    /// Materializes records using parameterless constructor and property setters.
+    /// </summary>
     private sealed class PropertySetterRowBinder<T> : IRowBinder<T>
     {
         private readonly List<(ColumnMapping<T> Mapping, int Ordinal)> _bindings;
@@ -364,7 +400,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
             T instance;
             try
             {
-                instance = Activator.CreateInstance<T>();
+                instance = Activator.CreateInstance<T>()!;
             }
             catch (Exception ex)
             {
@@ -409,6 +445,9 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         }
     }
 
+    /// <summary>
+    /// Converts a raw string representation to the target CLR type with invariant culture parsing.
+    /// </summary>
     private static object? ConvertValue(string? raw, Type targetType)
     {
         if (raw == null || (string.IsNullOrWhiteSpace(raw) && targetType != typeof(string)))

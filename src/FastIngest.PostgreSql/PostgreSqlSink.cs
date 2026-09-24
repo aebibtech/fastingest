@@ -5,12 +5,22 @@ using Npgsql;
 
 namespace FastIngest.PostgreSql;
 
+/// <summary>
+/// High-throughput PostgreSQL bulk ingestion sink leveraging native binary <c>COPY FROM STDIN (FORMAT BINARY)</c>.
+/// </summary>
+/// <typeparam name="TRecord">The strongly-typed model representing the parsed row.</typeparam>
 public class PostgreSqlSink<TRecord> : IIngestionSink<TRecord>
 {
     private readonly NpgsqlConnection _connection;
     private readonly string _tableName;
     private readonly IReadOnlyList<ColumnMapping<TRecord>> _mappings;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PostgreSqlSink{TRecord}"/> class.
+    /// </summary>
+    /// <param name="connection">An open or connectable <see cref="NpgsqlConnection"/>.</param>
+    /// <param name="tableName">The destination table name (optionally schema-qualified, e.g. "public.customers").</param>
+    /// <param name="mappings">The collection of column-to-property mappings for binary column serialization.</param>
     public PostgreSqlSink(
         NpgsqlConnection connection,
         string tableName,
@@ -26,21 +36,31 @@ public class PostgreSqlSink<TRecord> : IIngestionSink<TRecord>
         }
     }
 
+    /// <summary>
+    /// Writes a batch of records directly into PostgreSQL using binary COPY streaming.
+    /// </summary>
+    /// <param name="batch">The batch of records to ingest.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <returns>The total number of rows successfully written and committed.</returns>
     public async Task<long> WriteBatchAsync(IReadOnlyList<TRecord> batch, CancellationToken cancellationToken)
     {
         if (batch.Count == 0) return 0;
 
+        // Ensure database connection is open
         if (_connection.State != ConnectionState.Open)
         {
             await _connection.OpenAsync(cancellationToken);
         }
 
+        // Construct qualified table identifier and quoted column list
         var qualifiedTable = FormatTableName(_tableName);
         var columns = string.Join(", ", _mappings.Select(m => $"\"{m.ColumnName.Trim('\"')}\""));
         var copyCommand = $"COPY {qualifiedTable} ({columns}) FROM STDIN (FORMAT BINARY)";
 
+        // Initiate PostgreSQL binary import stream
         await using var writer = await _connection.BeginBinaryImportAsync(copyCommand, cancellationToken);
 
+        // Stream rows and columns into the binary importer
         foreach (var record in batch)
         {
             await writer.StartRowAsync(cancellationToken);
@@ -59,10 +79,14 @@ public class PostgreSqlSink<TRecord> : IIngestionSink<TRecord>
             }
         }
 
+        // Commit binary import operation and return affected row count
         ulong rowsImported = await writer.CompleteAsync(cancellationToken);
         return (long)rowsImported;
     }
 
+    /// <summary>
+    /// Formats table names, quoting identifiers and handling schema qualifiers (e.g. "my_schema"."my_table").
+    /// </summary>
     private static string FormatTableName(string tableName)
     {
         if (tableName.Contains('.'))
