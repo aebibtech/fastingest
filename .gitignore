@@ -1,0 +1,27 @@
+## Build and artifact outputs
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+[Tt]est[Rr]esults/
+*.nupkg
+*.snupkg
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.DotSettings
+*.DotSettings.user
+
+## OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Logs & caches
+*.log
+.dotnet/

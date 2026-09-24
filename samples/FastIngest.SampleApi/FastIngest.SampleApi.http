@@ -1,0 +1,6 @@
+@FastIngest.SampleApi_HostAddress = http://localhost:5093
+
+GET {{FastIngest.SampleApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
