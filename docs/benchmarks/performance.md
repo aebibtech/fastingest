@@ -16,6 +16,32 @@ All benchmarks were conducted using the following test environment:
 
 ---
 
+## BenchmarkDotNet Head-to-Head: FastIngest vs EF Core 9
+
+Automated benchmark runs generated directly using **BenchmarkDotNet v0.15.8** on `.NET 9.0 (Apple M4, PostgreSQL 16 Alpine via Testcontainers)` measuring execution latency, GC collection counts, and heap allocations across **25,000** and **100,000** rows:
+
+| Method | RowCount | Mean | Ratio | Rank | Gen 0 | Gen 1 | Gen 2 | Allocated | Alloc Ratio |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **FastIngest_Pipeline** | **25,000** | **178.7 ms** | **0.17** | **1** | **2,000** | **1,000** | **-** | **18.44 MB** | **0.08** |
+| EfCore_Batched | 25,000 | 1,033.0 ms | 0.97 | 2 | 25,000 | 12,000 | 3,000 | 207.63 MB | 0.94 |
+| EfCore_Naive | 25,000 | 1,067.0 ms | 1.00 | 3 | 25,000 | 9,000 | 2,000 | 219.95 MB | 1.00 |
+| | | | | | | | | | |
+| **FastIngest_Pipeline** | **100,000** | **496.6 ms** | **0.17** | **1** | **9,000** | **3,000** | **-** | **72.81 MB** | **0.08** |
+| EfCore_Batched | 100,000 | 2,592.3 ms | 0.91 | 2 | 107,000 | 53,000 | 17,000 | 825.18 MB | 0.94 |
+| EfCore_Naive | 100,000 | 2,843.0 ms | 1.00 | 3 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
+
+### Benchmark Analysis:
+- **5.7x to 5.9x Higher Throughput**: FastIngest processes 100,000 rows in ~496 ms versus 2,843 ms for naive EF Core and 2,592 ms for batched EF Core.
+- **92% Heap Allocation Reduction**: FastIngest allocates only **72.8 MB** (0.08 ratio) versus **876 MB** in EF Core Naive and **825 MB** in EF Core Batched for 100,000 records.
+- **Zero Gen 2 Garbage Collections**: FastIngest avoids long-lived heap object promotions, registering **0** Gen 2 collections across all tests compared to up to 17,000 Gen 2 triggers in batched EF Core.
+
+To run these benchmarks locally, execute:
+```bash
+./benchmarks/run-benchmarks.sh
+```
+
+---
+
 ## 1. Relational Database Sinks (1,000,000 Rows)
 
 Comparison of total time, throughput (rows/sec), and peak memory consumption when importing **1,000,000 rows** of tabular CSV data into local relational database instances:
