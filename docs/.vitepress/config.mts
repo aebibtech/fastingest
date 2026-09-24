@@ -72,7 +72,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright © 2026 Paul Abib Camano (StewardAxis LLC)'
+      copyright: 'Copyright © 2026 Paul Abib Camano (Aebibtech)'
     },
 
     docFooter: {
