@@ -44,4 +44,10 @@ public sealed class PipelineOptions
     /// Defaults to <see cref="BoundedChannelFullMode.Wait"/> to guarantee bounded memory without dropping batches.
     /// </summary>
     public BoundedChannelFullMode FullMode { get; set; } = BoundedChannelFullMode.Wait;
+
+    /// <summary>
+    /// Gets or sets custom JSON serializer options used when reading line-delimited JSON (JSONL / NDJSON) streams.
+    /// When null, defaults to case-insensitive property matching.
+    /// </summary>
+    public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; set; }
 }

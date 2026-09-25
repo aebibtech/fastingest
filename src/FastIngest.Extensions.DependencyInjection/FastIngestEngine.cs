@@ -109,6 +109,11 @@ public class FastIngestEngine : IFastIngestEngine
             .WithBatchSize(batchSize)
             .WithChannelCapacity(channelCapacity);
 
+        if (profile.JsonSerializerOptions != null)
+        {
+            pipeline.WithJsonOptions(profile.JsonSerializerOptions);
+        }
+
         if (onProgress != null)
         {
             pipeline.OnProgress(onProgress);

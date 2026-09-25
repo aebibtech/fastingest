@@ -111,6 +111,49 @@ app.MapPost("/api/ingest/customers", async (IFormFile file, CancellationToken ct
 .WithName("IngestCustomers")
 .DisableAntiforgery();
 
+// Sample ingestion endpoint accepting JSON Lines (.jsonl / .ndjson) file uploads and streaming records through FastIngest pipeline.
+app.MapPost("/api/ingest/customers/jsonl", async (IFormFile file, CancellationToken ct) =>
+{
+    if (file == null || file.Length == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded or file is empty." });
+    }
+
+    // Stream directly from upload without saving file to disk or buffering whole content in memory
+    await using var stream = file.OpenReadStream();
+
+    // Use in-memory sink for local demonstration
+    var sink = new InMemorySink<CustomerRecord>();
+
+    // Configure and execute the streaming ingestion pipeline for JSON Lines
+    var result = await FastIngestPipeline<CustomerRecord>.Create()
+        .FromStream(stream, file.FileName, FileType.JsonLines)
+        .ValidateWith<CustomerValidator>(options =>
+        {
+            // Collect invalid records and continue processing valid rows
+            options.ErrorStrategy = ErrorStrategy.CollectAndContinue;
+        })
+        .WithBatchSize(1000)
+        .OnProgress(progress =>
+        {
+            app.Logger.LogInformation("Ingested {Processed} JSONL rows (Succeeded: {Succeeded}, Failed: {Failed})",
+                progress.RowsProcessed, progress.RowsSucceeded, progress.RowsFailed);
+        })
+        .WriteToSinkAsync(sink, ct);
+
+    return Results.Ok(new
+    {
+        totalProcessed = result.TotalProcessed,
+        totalSucceeded = result.TotalSucceeded,
+        totalFailed = result.TotalFailed,
+        isSuccess = result.IsSuccess,
+        errors = result.Errors.Take(100),
+        inMemoryCount = sink.Records.Count
+    });
+})
+.WithName("IngestCustomersJsonLines")
+.DisableAntiforgery();
+
 app.Run();
 
 /// <summary>
@@ -120,7 +163,7 @@ public record CustomerRecord(int Id, string Email, string FullName, decimal Bala
 
 /// <summary>
 /// FastIngest profile configuring column mappings, table destination, and error strategy for customer records.
-/// Pre-compiled mapping expressions are cached as singletons.
+/// Pre-compiled mapping expressions are cached as singletons. Supports both CSV and JSON Lines automatically.
 /// </summary>
 public class CustomerImportProfile : FastIngestProfile<CustomerRecord>
 {
@@ -129,7 +172,7 @@ public class CustomerImportProfile : FastIngestProfile<CustomerRecord>
         ToTable("customers");
         WithBatchSize(1000);
         WithErrorStrategy(ErrorStrategy.CollectAndContinue);
-        WithFileType(FileType.Csv);
+        WithFileType(FileType.AutoDetect);
 
         Map(x => x.Id, "customer_id");
         Map(x => x.Email, "email");

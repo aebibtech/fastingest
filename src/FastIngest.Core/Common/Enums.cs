@@ -16,6 +16,16 @@ public enum FileType
     Xlsx,
 
     /// <summary>
+    /// Line-delimited JSON (JSON Lines / NDJSON) streaming plain text format.
+    /// </summary>
+    JsonLines,
+
+    /// <summary>
+    /// Alias for <see cref="JsonLines"/>.
+    /// </summary>
+    Ndjson = JsonLines,
+
+    /// <summary>
     /// Automatically infers the file format based on content inspection or stream headers.
     /// </summary>
     AutoDetect

@@ -39,9 +39,14 @@ public interface IFastIngestProfile
     ErrorStrategy ErrorStrategy { get; }
 
     /// <summary>
-    /// Gets the expected tabular file format (CSV, XLSX, or AutoDetect).
+    /// Gets the expected tabular file format (CSV, XLSX, JsonLines, or AutoDetect).
     /// </summary>
     FileType FileType { get; }
+
+    /// <summary>
+    /// Gets the custom JSON serialization options used for JSON Lines ingestion, or null for defaults.
+    /// </summary>
+    System.Text.Json.JsonSerializerOptions? JsonSerializerOptions => null;
 }
 
 /// <summary>

@@ -2,10 +2,12 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Channels;
 using FastIngest.Core.Common;
 using FastIngest.Core.Exceptions;
 using FastIngest.Core.Mapping;
+using FastIngest.Core.Readers;
 using FastIngest.Core.Results;
 using FastIngest.Core.Sinks;
 using FluentValidation;
@@ -21,7 +23,9 @@ namespace FastIngest.Core.Pipeline;
 public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
 {
     private Stream? _stream;
+    private string? _fileName;
     private FileType _fileType = FileType.AutoDetect;
+    private JsonSerializerOptions? _jsonSerializerOptions;
     private readonly ColumnMappingBuilder<TRecord> _mappingBuilder = new();
     private bool _hasCustomMapping;
     private IReadOnlyList<ColumnMapping<TRecord>>? _customMappings;
@@ -42,6 +46,42 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     {
         _stream = stream ?? throw new ArgumentNullException(nameof(stream));
         _fileType = fileType;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> FromStream(Stream stream, string? fileName, FileType fileType = FileType.AutoDetect)
+    {
+        _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+        _fileName = fileName;
+        _fileType = fileType;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> FromFile(string filePath, FileType fileType = FileType.AutoDetect)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        _stream = stream;
+        _fileName = filePath;
+        _fileType = fileType;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> WithJsonOptions(JsonSerializerOptions options)
+    {
+        _jsonSerializerOptions = options ?? throw new ArgumentNullException(nameof(options));
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> WithJsonOptions(Action<JsonSerializerOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _jsonSerializerOptions ??= new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        configure(_jsonSerializerOptions);
         return this;
     }
 
@@ -145,6 +185,7 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         long totalFailed = 0;
         long streamPosition = 0;
         long streamLength = _stream.CanSeek ? _stream.Length : 0;
+        var effectiveFileType = ResolveFileType(_stream, _fileType, _fileName);
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = linkedCts.Token;
@@ -160,106 +201,18 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         {
             try
             {
-                // Initialize zero-allocation Sylvan CsvDataReader over stream
-                using var streamReader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 65536, leaveOpen: true);
-                var csvOptions = new CsvDataReaderOptions
+                if (effectiveFileType == FileType.JsonLines)
                 {
-                    HasHeaders = true
-                };
-
-                using var csvReader = CsvDataReader.Create(streamReader, csvOptions);
-
-                // Map column header names to zero-based ordinals for fast O(1) index lookups
-                var headerOrdinals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                for (int i = 0; i < csvReader.FieldCount; i++)
-                {
-                    headerOrdinals[csvReader.GetName(i)] = i;
+                    await ProduceJsonLinesAsync();
                 }
-
-                // Prepare high-performance binder (constructor-based for positional records or property-setter based)
-                var binder = CreateRowBinder(mappings, headerOrdinals);
-
-                var batch = new List<TRecord>(_batchSize);
-
-                // Streaming row-by-row iteration without loading whole dataset into memory
-                while (await csvReader.ReadAsync(ct))
+                else if (effectiveFileType == FileType.Csv)
                 {
-                    ct.ThrowIfCancellationRequested();
-                    Interlocked.Increment(ref totalProcessed);
-                    long rowIndex = totalProcessed;
-
-                    if (_stream.CanSeek)
-                    {
-                        Volatile.Write(ref streamPosition, _stream.Position);
-                    }
-
-                    // Attempt to materialize TRecord from current CSV row
-                    bool rowMaterialized = binder.TryMaterialize(csvReader, rowIndex, out var record, out var materializationErrors);
-
-                    if (!rowMaterialized)
-                    {
-                        Interlocked.Increment(ref totalFailed);
-                        errors.AddRange(materializationErrors);
-
-                        if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
-                        {
-                            throw new FastIngestValidationException(
-                                $"Materialization failed on row {rowIndex}: {materializationErrors.FirstOrDefault()?.ErrorMessage}",
-                                materializationErrors);
-                        }
-
-                        continue;
-                    }
-
-                    // Execute FluentValidation rules if configured
-                    if (_validator != null && record != null)
-                    {
-                        var validationResult = await _validator.ValidateAsync(record, ct);
-                        if (!validationResult.IsValid)
-                        {
-                            Interlocked.Increment(ref totalFailed);
-                            var rowErrors = validationResult.Errors.Select(e =>
-                                new IngestRowError(rowIndex, e.PropertyName, e.AttemptedValue?.ToString() ?? string.Empty, e.ErrorMessage)
-                            ).ToList();
-
-                            errors.AddRange(rowErrors);
-
-                            if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
-                            {
-                                throw new FastIngestValidationException(
-                                    $"Validation failed on row {rowIndex}: {rowErrors.FirstOrDefault()?.ErrorMessage}",
-                                    rowErrors);
-                            }
-
-                            continue;
-                        }
-                    }
-
-                    if (record != null)
-                    {
-                        batch.Add(record);
-                    }
-
-                    // Flush chunk batch when threshold reached
-                    if (batch.Count >= _batchSize)
-                    {
-                        await channel.Writer.WriteAsync(batch, ct);
-                        batch = new List<TRecord>(_batchSize);
-                    }
+                    await ProduceCsvAsync();
                 }
-
-                // Flush remaining trailing records
-                if (batch.Count > 0)
+                else
                 {
-                    await channel.Writer.WriteAsync(batch, ct);
+                    throw new NotSupportedException($"The file format '{effectiveFileType}' is not supported for streaming ingestion.");
                 }
-
-                if (_stream.CanSeek)
-                {
-                    Volatile.Write(ref streamPosition, _stream.Length);
-                }
-
-                channel.Writer.Complete();
             }
             catch (Exception ex)
             {
@@ -268,6 +221,195 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
                 throw;
             }
         }, ct);
+
+        async Task ProduceJsonLinesAsync()
+        {
+            var effectiveJsonOptions = _jsonSerializerOptions ?? _pipelineOptions.JsonSerializerOptions;
+            var jsonReader = new JsonLinesStreamReader<TRecord>(_stream, effectiveJsonOptions, leaveOpen: true, ct);
+            var batch = new List<TRecord>(_batchSize);
+
+            await foreach (var item in jsonReader.ReadLineItemsAsync(ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                Interlocked.Increment(ref totalProcessed);
+                long rowIndex = item.LineNumber;
+
+                if (_stream.CanSeek)
+                {
+                    Volatile.Write(ref streamPosition, _stream.Position);
+                }
+
+                if (!item.IsSuccess)
+                {
+                    Interlocked.Increment(ref totalFailed);
+                    errors.Add(item.Error!);
+
+                    if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                    {
+                        throw new FastIngestValidationException(
+                            $"JSON parsing failed on row {rowIndex}: {item.Error!.ErrorMessage}",
+                            new[] { item.Error! });
+                    }
+
+                    continue;
+                }
+
+                var record = item.Record;
+
+                // Execute FluentValidation rules if configured
+                if (_validator != null && record != null)
+                {
+                    var validationResult = await _validator.ValidateAsync(record, ct);
+                    if (!validationResult.IsValid)
+                    {
+                        Interlocked.Increment(ref totalFailed);
+                        var rowErrors = validationResult.Errors.Select(e =>
+                            new IngestRowError(rowIndex, e.PropertyName, e.AttemptedValue?.ToString() ?? string.Empty, e.ErrorMessage)
+                        ).ToList();
+
+                        errors.AddRange(rowErrors);
+
+                        if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                        {
+                            throw new FastIngestValidationException(
+                                $"Validation failed on row {rowIndex}: {rowErrors.FirstOrDefault()?.ErrorMessage}",
+                                rowErrors);
+                        }
+
+                        continue;
+                    }
+                }
+
+                if (record != null)
+                {
+                    batch.Add(record);
+                }
+
+                // Flush chunk batch when threshold reached
+                if (batch.Count >= _batchSize)
+                {
+                    await channel.Writer.WriteAsync(batch, ct);
+                    batch = new List<TRecord>(_batchSize);
+                }
+            }
+
+            // Flush remaining trailing records
+            if (batch.Count > 0)
+            {
+                await channel.Writer.WriteAsync(batch, ct);
+            }
+
+            if (_stream.CanSeek)
+            {
+                Volatile.Write(ref streamPosition, _stream.Length);
+            }
+
+            channel.Writer.Complete();
+        }
+
+        async Task ProduceCsvAsync()
+        {
+            // Initialize zero-allocation Sylvan CsvDataReader over stream
+            using var streamReader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 65536, leaveOpen: true);
+            var csvOptions = new CsvDataReaderOptions
+            {
+                HasHeaders = true
+            };
+
+            using var csvReader = CsvDataReader.Create(streamReader, csvOptions);
+
+            // Map column header names to zero-based ordinals for fast O(1) index lookups
+            var headerOrdinals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < csvReader.FieldCount; i++)
+            {
+                headerOrdinals[csvReader.GetName(i)] = i;
+            }
+
+            // Prepare high-performance binder (constructor-based for positional records or property-setter based)
+            var binder = CreateRowBinder(mappings, headerOrdinals);
+
+            var batch = new List<TRecord>(_batchSize);
+
+            // Streaming row-by-row iteration without loading whole dataset into memory
+            while (await csvReader.ReadAsync(ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                Interlocked.Increment(ref totalProcessed);
+                long rowIndex = totalProcessed;
+
+                if (_stream.CanSeek)
+                {
+                    Volatile.Write(ref streamPosition, _stream.Position);
+                }
+
+                // Attempt to materialize TRecord from current CSV row
+                bool rowMaterialized = binder.TryMaterialize(csvReader, rowIndex, out var record, out var materializationErrors);
+
+                if (!rowMaterialized)
+                {
+                    Interlocked.Increment(ref totalFailed);
+                    errors.AddRange(materializationErrors);
+
+                    if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                    {
+                        throw new FastIngestValidationException(
+                            $"Materialization failed on row {rowIndex}: {materializationErrors.FirstOrDefault()?.ErrorMessage}",
+                            materializationErrors);
+                    }
+
+                    continue;
+                }
+
+                // Execute FluentValidation rules if configured
+                if (_validator != null && record != null)
+                {
+                    var validationResult = await _validator.ValidateAsync(record, ct);
+                    if (!validationResult.IsValid)
+                    {
+                        Interlocked.Increment(ref totalFailed);
+                        var rowErrors = validationResult.Errors.Select(e =>
+                            new IngestRowError(rowIndex, e.PropertyName, e.AttemptedValue?.ToString() ?? string.Empty, e.ErrorMessage)
+                        ).ToList();
+
+                        errors.AddRange(rowErrors);
+
+                        if (_validationOptions.ErrorStrategy == ErrorStrategy.FailFast)
+                        {
+                            throw new FastIngestValidationException(
+                                $"Validation failed on row {rowIndex}: {rowErrors.FirstOrDefault()?.ErrorMessage}",
+                                rowErrors);
+                        }
+
+                        continue;
+                    }
+                }
+
+                if (record != null)
+                {
+                    batch.Add(record);
+                }
+
+                // Flush chunk batch when threshold reached
+                if (batch.Count >= _batchSize)
+                {
+                    await channel.Writer.WriteAsync(batch, ct);
+                    batch = new List<TRecord>(_batchSize);
+                }
+            }
+
+            // Flush remaining trailing records
+            if (batch.Count > 0)
+            {
+                await channel.Writer.WriteAsync(batch, ct);
+            }
+
+            if (_stream.CanSeek)
+            {
+                Volatile.Write(ref streamPosition, _stream.Length);
+            }
+
+            channel.Writer.Complete();
+        }
 
         var consumerTask = Task.Run(async () =>
         {
@@ -615,5 +757,106 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
         if (underlyingType.IsEnum) return Enum.Parse(underlyingType, raw, ignoreCase: true);
 
         return Convert.ChangeType(raw, underlyingType, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Infers the input file format based on explicit configuration, file extension, or content inspection heuristics.
+    /// </summary>
+    private static FileType ResolveFileType(Stream stream, FileType configuredFileType, string? fileName = null)
+    {
+        if (configuredFileType != FileType.AutoDetect)
+        {
+            return configuredFileType;
+        }
+
+        // 1. Inspect explicit file name / extension if provided
+        if (!string.IsNullOrWhiteSpace(fileName))
+        {
+            var detected = DetectFromExtension(Path.GetExtension(fileName));
+            if (detected != FileType.AutoDetect)
+            {
+                return detected;
+            }
+        }
+
+        // 2. Inspect FileStream name if stream is FileStream
+        if (stream is FileStream fileStream && !string.IsNullOrWhiteSpace(fileStream.Name))
+        {
+            var detected = DetectFromExtension(Path.GetExtension(fileStream.Name));
+            if (detected != FileType.AutoDetect)
+            {
+                return detected;
+            }
+        }
+
+        // 3. Inspect stream content if seekable
+        if (stream.CanSeek)
+        {
+            long initialPosition = stream.Position;
+            try
+            {
+                Span<byte> buffer = stackalloc byte[1024];
+                int bytesRead = stream.Read(buffer);
+                int offset = 0;
+
+                // Skip UTF-8 BOM if present
+                if (bytesRead >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
+                {
+                    offset = 3;
+                }
+
+                for (int i = offset; i < bytesRead; i++)
+                {
+                    byte b = buffer[i];
+                    if (b == ' ' || b == '\t' || b == '\r' || b == '\n')
+                    {
+                        continue;
+                    }
+
+                    if (b == '{')
+                    {
+                        return FileType.JsonLines;
+                    }
+
+                    break;
+                }
+            }
+            catch
+            {
+                // Fall back to default on stream read error
+            }
+            finally
+            {
+                stream.Position = initialPosition;
+            }
+        }
+
+        return FileType.Csv;
+    }
+
+    /// <summary>
+    /// Maps common file extensions to corresponding <see cref="FileType"/> formats.
+    /// </summary>
+    private static FileType DetectFromExtension(string? extension)
+    {
+        if (string.IsNullOrWhiteSpace(extension)) return FileType.AutoDetect;
+
+        if (extension.Equals(".jsonl", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".ndjson", StringComparison.OrdinalIgnoreCase))
+        {
+            return FileType.JsonLines;
+        }
+
+        if (extension.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            return FileType.Csv;
+        }
+
+        if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return FileType.Xlsx;
+        }
+
+        return FileType.AutoDetect;
     }
 }

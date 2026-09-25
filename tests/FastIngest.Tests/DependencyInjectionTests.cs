@@ -63,6 +63,18 @@ public class DiCustomerCustomCapacityProfile : FastIngestProfile<DiCustomer>
     }
 }
 
+public class DiCustomerJsonLinesProfile : FastIngestProfile<DiCustomer>
+{
+    public DiCustomerJsonLinesProfile()
+    {
+        ToTable("di_customers");
+        WithBatchSize(2);
+        WithErrorStrategy(ErrorStrategy.CollectAndContinue);
+        WithFileType(FileType.JsonLines);
+        WithJsonOptions(new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+}
+
 public class DiCustomerValidator : AbstractValidator<DiCustomer>
 {
     public DiCustomerValidator()
@@ -300,5 +312,34 @@ public class DependencyInjectionTests
         Assert.Equal(2, result.TotalProcessed);
         Assert.Equal(2, result.TotalSucceeded);
         Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task Engine_Should_Ingest_JsonLines_Successfully_Using_Profile()
+    {
+        var ndjson = """
+                     {"id": 1, "email": "alice@example.com", "fullName": "Alice Smith", "balance": 150.50}
+                     {"id": 2, "email": "bob@example.com", "fullName": "Bob Jones", "balance": 200.00}
+                     """;
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(ndjson));
+
+        var services = new ServiceCollection();
+        services.AddFastIngest(b => b.RegisterProfile<DiCustomerJsonLinesProfile>());
+
+        using var serviceProvider = services.BuildServiceProvider();
+        using var scope = serviceProvider.CreateScope();
+
+        var engine = scope.ServiceProvider.GetRequiredService<IFastIngestEngine>();
+        var sink = new TestMemorySink<DiCustomer>();
+
+        var result = await engine.IngestAsync(stream, sink);
+
+        Assert.Equal(2, result.TotalProcessed);
+        Assert.Equal(2, result.TotalSucceeded);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, sink.Records.Count);
+        Assert.Equal("alice@example.com", sink.Records[0].Email);
+        Assert.Equal("bob@example.com", sink.Records[1].Email);
     }
 }

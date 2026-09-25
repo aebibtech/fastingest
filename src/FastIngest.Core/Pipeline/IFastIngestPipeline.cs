@@ -15,10 +15,27 @@ public interface IFastIngestPipeline<TRecord>
     /// <summary>
     /// Configures the source data stream and format for ingestion.
     /// </summary>
-    /// <param name="stream">The readable stream containing tabular data.</param>
-    /// <param name="fileType">The format of the input stream (CSV, XLSX, or AutoDetect).</param>
+    /// <param name="stream">The readable stream containing tabular or line-delimited data.</param>
+    /// <param name="fileType">The format of the input stream (CSV, XLSX, JsonLines, or AutoDetect).</param>
     /// <returns>The pipeline instance for fluent chaining.</returns>
     IFastIngestPipeline<TRecord> FromStream(Stream stream, FileType fileType = FileType.AutoDetect);
+
+    /// <summary>
+    /// Configures the source data stream, optional file name for extension heuristics, and format for ingestion.
+    /// </summary>
+    /// <param name="stream">The readable stream containing tabular or line-delimited data.</param>
+    /// <param name="fileName">The file name or path used for extension detection heuristics.</param>
+    /// <param name="fileType">The format of the input stream (CSV, XLSX, JsonLines, or AutoDetect).</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> FromStream(Stream stream, string? fileName, FileType fileType = FileType.AutoDetect);
+
+    /// <summary>
+    /// Opens and configures a file on disk for streaming ingestion with automatic file type detection.
+    /// </summary>
+    /// <param name="filePath">The absolute or relative path to the source file.</param>
+    /// <param name="fileType">The format of the file (CSV, XLSX, JsonLines, or AutoDetect).</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> FromFile(string filePath, FileType fileType = FileType.AutoDetect);
 
     /// <summary>
     /// Configures the property-to-column mappings using a fluent builder callback.
@@ -70,6 +87,20 @@ public interface IFastIngestPipeline<TRecord>
     /// <param name="configure">The action to configure <see cref="PipelineOptions"/>.</param>
     /// <returns>The pipeline instance for fluent chaining.</returns>
     IFastIngestPipeline<TRecord> WithOptions(Action<PipelineOptions> configure);
+
+    /// <summary>
+    /// Configures JSON serialization options for JSON Lines / NDJSON streaming ingestion.
+    /// </summary>
+    /// <param name="options">The <see cref="System.Text.Json.JsonSerializerOptions"/> instance.</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> WithJsonOptions(System.Text.Json.JsonSerializerOptions options);
+
+    /// <summary>
+    /// Configures JSON serialization options for JSON Lines / NDJSON streaming ingestion using a configuration callback.
+    /// </summary>
+    /// <param name="configure">The action to configure <see cref="System.Text.Json.JsonSerializerOptions"/>.</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> WithJsonOptions(Action<System.Text.Json.JsonSerializerOptions> configure);
 
     /// <summary>
     /// Registers a progress callback invoked after every batch flush or pipeline stage update.

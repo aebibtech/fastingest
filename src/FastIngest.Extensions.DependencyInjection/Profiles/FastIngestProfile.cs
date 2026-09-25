@@ -34,6 +34,9 @@ public abstract class FastIngestProfile<TRecord> : IFastIngestProfile<TRecord>
     /// <inheritdoc/>
     public FileType FileType { get; protected set; } = FileType.AutoDetect;
 
+    /// <inheritdoc/>
+    public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; protected set; }
+
     /// <summary>
     /// Configures the destination table name for this record profile.
     /// </summary>
@@ -105,6 +108,17 @@ public abstract class FastIngestProfile<TRecord> : IFastIngestProfile<TRecord>
     protected FastIngestProfile<TRecord> WithFileType(FileType fileType)
     {
         FileType = fileType;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the custom JSON serialization options used for JSON Lines ingestion.
+    /// </summary>
+    /// <param name="jsonOptions">The JSON serializer options to apply.</param>
+    /// <returns>The current profile instance for fluent chaining.</returns>
+    protected FastIngestProfile<TRecord> WithJsonOptions(System.Text.Json.JsonSerializerOptions jsonOptions)
+    {
+        JsonSerializerOptions = jsonOptions ?? throw new ArgumentNullException(nameof(jsonOptions));
         return this;
     }
 

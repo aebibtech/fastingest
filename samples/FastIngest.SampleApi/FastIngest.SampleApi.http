@@ -1,6 +1,27 @@
 @FastIngest.SampleApi_HostAddress = http://localhost:5093
 
-GET {{FastIngest.SampleApi_HostAddress}}/weatherforecast/
-Accept: application/json
+### Manual Streaming Ingestion - JSON Lines (.jsonl / .ndjson)
+POST {{FastIngest.SampleApi_HostAddress}}/api/ingest/customers/jsonl
+Content-Type: multipart/form-data; boundary=WebAppBoundary
 
-###
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="customers.jsonl"
+Content-Type: application/x-ndjson
+
+{"id": 1, "email": "alice@example.com", "fullName": "Alice Smith", "balance": 150.50}
+{"id": 2, "email": "bob@example.com", "fullName": "Bob Jones", "balance": 200.00}
+{"id": 3, "email": "carol@example.com", "fullName": "Carol White", "balance": 99.99}
+--WebAppBoundary--
+
+### Dependency Injection Pipeline - Automatic Format Detection
+POST {{FastIngest.SampleApi_HostAddress}}/api/customers/import
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="customers.ndjson"
+Content-Type: application/x-ndjson
+
+{"id": 1, "email": "alice@example.com", "fullName": "Alice Smith", "balance": 150.50}
+{"id": 2, "email": "bob@example.com", "fullName": "Bob Jones", "balance": 200.00}
+--WebAppBoundary--
+
