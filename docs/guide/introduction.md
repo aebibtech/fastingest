@@ -1,6 +1,6 @@
 # Introduction to FastIngest
 
-**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline designed specifically for .NET 9+ workloads. It enables you to stream massive CSV and Excel files (ranging from hundreds of megabytes to tens of gigabytes) directly into your database or search engine without exhausting RAM or suffering Garbage Collection freezes.
+**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline designed specifically for .NET 9+ workloads. It enables you to stream massive CSV, Excel, and line-delimited JSON (NDJSON / `.jsonl`) files (ranging from hundreds of megabytes to tens of gigabytes) directly into your database or search engine without exhausting RAM or suffering Garbage Collection freezes.
 
 ---
 
@@ -8,7 +8,7 @@
 
 Processing large data imports in .NET frequently runs into three major bottlenecks:
 
-1. **Memory Bloat ($O(N)$ Growth)**: Traditional libraries (like CsvHelper or standard deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
+1. **Memory Bloat ($O(N)$ Growth)**: Traditional libraries (like CsvHelper or standard JSON deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
 2. **Slow Row-by-Row Database Inserts**: Using Entity Framework Core or standard ADO.NET `INSERT INTO` statements generates individual round-trips over the network. Even with basic transaction batching, throughput is usually capped at 2,000–5,000 rows/second.
 3. **Reflection Overhead**: Dynamically mapping string columns to record properties at runtime using standard reflection consumes CPU cycles and generates temporary object allocations on every single cell.
 
@@ -19,16 +19,16 @@ Processing large data imports in .NET frequently runs into three major bottlenec
 FastIngest combines four core pillars to achieve maximum throughput with fixed memory:
 
 ```
-Stream (CSV / XLSX)
+Stream (CSV / XLSX / JSONL / NDJSON)
         │
         ▼
 ┌─────────────────────────────────┐
-│ Producer: Sylvan Stream Reader  │  <-- Zero-allocation row streaming (CPU)
+│ Producer: Streaming Reader      │  <-- Sylvan CSV or PipeReader JSON Lines (CPU)
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
-│ Producer: Pre-Compiled Mapper   │  <-- Zero-reflection property binding
+│ Producer: Pre-Compiled / Utf8   │  <-- Compiled expression binders or Utf8JsonReader
 └──────────────┬──────────────────┘
                │
                ▼
@@ -48,8 +48,10 @@ Stream (CSV / XLSX)
 └─────────────────────────────────┘
 ```
 
-1. **Zero-Allocation Streaming**: Built on [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the fastest CSV reader in the .NET ecosystem, reading records as raw spans and UTF-8 bytes with minimal heap allocation.
-2. **Pre-Compiled Expression Trees**: Column mappings are compiled into high-performance delegate expressions once and cached for the lifetime of your application. Property extraction behaves at compiled code speed with zero reflection overhead.
+1. **Zero-Allocation Streaming**:
+   - **CSV**: Built on [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the fastest CSV reader in the .NET ecosystem, reading records as raw spans and UTF-8 bytes with minimal heap allocation.
+   - **JSON Lines (NDJSON)**: Built on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader` to slice lines and deserialize records directly from raw byte sequences without intermediate string allocations.
+2. **Pre-Compiled Expression Trees & High-Speed Deserialization**: Column mappings are compiled into high-performance delegate expressions once and cached for the lifetime of your application. For JSON Lines, `Utf8JsonReader` deserializes records directly into target types with optional case-insensitivity.
 3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity ($O(1)$ memory).
 4. **Native Bulk Transport Protocols**: FastIngest avoids generic SQL queries and binds directly to native database streaming interfaces:
    - PostgreSQL: Native binary `COPY ... FROM STDIN (FORMAT BINARY)`

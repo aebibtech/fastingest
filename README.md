@@ -4,25 +4,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NuGet](https://img.shields.io/nuget/v/FastIngest.Core.svg)](https://www.nuget.org/packages/FastIngest.Core)
 
-**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV/XLSX to PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, concurrent producer-consumer bounded channels, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
+**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV, XLSX, and NDJSON/JSONL to PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, concurrent producer-consumer bounded channels, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
 
 ---
 
 ## Architecture Overview
 
-FastIngest processes incoming tabular data using a decoupled producer-consumer pipeline that keeps memory usage constant ($O(1)$) regardless of file size:
+FastIngest processes incoming tabular and line-delimited data using a decoupled producer-consumer pipeline that keeps memory usage constant ($O(1)$) regardless of file size:
 
 ```
-Stream (CSV / XLSX)
+Stream (CSV / XLSX / JSONL / NDJSON)
         │
         ▼
 ┌─────────────────────────────────┐
-│ Producer: Sylvan Stream Reader  │  <-- Zero-allocation row streaming (CPU)
+│ Producer: Streaming Reader      │  <-- Sylvan CSV or PipeReader JSON Lines (CPU)
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
-│ Producer: Expression Mapper     │  <-- Zero-reflection property binding
+│ Producer: Expression / Utf8 JSON│  <-- Zero-reflection binders or Utf8JsonReader
 └──────────────┬──────────────────┘
                │
                ▼
@@ -48,11 +48,12 @@ Stream (CSV / XLSX)
 
 - **Concurrent Producer-Consumer Pipelining**: Decouples CPU parsing/validation from database I/O socket operations using bounded `System.Threading.Channels` with backpressure.
 - **Constant-Memory Streaming**: Stream arbitrarily large files (gigabytes to tens of gigabytes) with strict $O(1)$ memory guarantees.
+- **Line-Delimited JSON (NDJSON / JSONL)**: High-speed streaming parser over `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader` with automatic format heuristics (`.jsonl`, `.ndjson`, or `{` content peeking).
 - **7 Native Database Sinks**: Direct bulk protocol integrations for PostgreSQL (`COPY`), SQL Server (`SqlBulkCopy`), MySQL (`MySqlBulkCopy`), SQLite (`WAL`), MongoDB (`BulkWriteAsync`), Azure Cosmos DB, and Elasticsearch.
 - **Validation Strategies**:
   - `FailFast`: Immediately halts ingestion on the first invalid record.
   - `CollectAndContinue`: Collects invalid row details and exports an error report CSV while allowing valid records to proceed.
-- **Fluent Pipeline API**: Composable, chainable pipeline configuration with channel capacity tuning (`WithChannelCapacity`) and progress tracking.
+- **Fluent Pipeline API**: Composable, chainable pipeline configuration with channel capacity tuning (`WithChannelCapacity`), custom JSON serializer options (`WithJsonOptions`), and progress tracking.
 - **SemVer 2.0 Driven by Git Tags**: Automated versioning via MinVer and seamless CI/CD publishing.
 
 ---
@@ -126,6 +127,21 @@ if (!result.IsSuccess)
 }
 ```
 
+### 4. Stream Line-Delimited JSON (NDJSON / JSONL)
+
+FastIngest natively streams `.jsonl` / `.ndjson` files without loading the entire document into RAM:
+
+```csharp
+await using var jsonlStream = File.OpenRead("customers.jsonl");
+
+var jsonlResult = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(jsonlStream, FileType.JsonLines) // Or FileType.Ndjson
+    .WithJsonOptions(opt => opt.PropertyNameCaseInsensitive = true)
+    .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
+    .WithBatchSize(5000)
+    .WriteToPostgresAsync(connection, "customers");
+```
+
 ---
 
 ## Performance Benchmarks
@@ -156,7 +172,7 @@ Official **BenchmarkDotNet** suite results comparing FastIngest streaming binary
 │   └── FastIngest.Benchmarks/     # BenchmarkDotNet performance suite
 ├── docs/                          # VitePress documentation website
 ├── src/
-│   ├── FastIngest.Core/           # Core pipeline, channels, binders, and streaming readers
+│   ├── FastIngest.Core/           # Core pipeline, channels, binders, CSV & NDJSON/JSONL streaming readers
 │   ├── FastIngest.PostgreSql/     # PostgreSQL native binary COPY sink
 │   ├── FastIngest.SqlServer/      # Microsoft SQL Server SqlBulkCopy sink
 │   ├── FastIngest.MySql/          # MySQL MySqlBulkCopy sink

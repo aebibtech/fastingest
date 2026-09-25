@@ -19,13 +19,13 @@ In naive data pipelines, memory consumption scales linearly with file size ($O(N
 FastIngest replaces memory buffering with a pure, forward-only streaming pipeline:
 
 ```
-Source Stream (CSV/XLSX)
+Source Stream (CSV / NDJSON / XLSX)
    │
    ▼
-[Reusable Span / Buffer Pool]  ◄── Sylvan Zero-Allocation Reader
+[Reusable Span / Buffer Pool]  ◄── Sylvan CSV Reader or PipeReader NDJSON Slicer
    │
    ▼
-[Pre-compiled Expression Map]  ◄── Reads raw string spans, zero reflection
+[Zero-Reflection Binders]      ◄── Pre-compiled Lambdas (CSV) or Utf8JsonReader (NDJSON)
    │
    ▼
 [System.Threading.Channels]    ◄── Bounded channel (e.g., 2 batches in flight)
@@ -37,15 +37,19 @@ Source Stream (CSV/XLSX)
 [Batch Discarded / Recycled]   ◄── Instant Gen 0 collection; Gen 2 untouched
 ```
 
-### 1. Zero-Allocation Sylvan Reader
+### 1. Zero-Allocation Sylvan CSV Reader
 
 FastIngest embeds [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the highest performance CSV parser in .NET. Sylvan reads bytes directly from the underlying stream into reusable internal buffers. Column values are accessed as `ReadOnlySpan<char>` without allocating intermediate strings when converting to numbers, booleans, dates, or Guids.
 
-### 2. Pre-Compiled Lambda Expressions
+### 2. Zero-Allocation PipeReader & Utf8JsonReader for JSON Lines
+
+For line-delimited JSON (`.jsonl` / `.ndjson`), FastIngest utilizes `System.IO.Pipelines.PipeReader` to slice lines directly out of pooled `ReadOnlySequence<byte>` buffers without materializing intermediate line strings on the heap. Each line is immediately passed to `System.Text.Json.Utf8JsonReader` as a raw byte sequence, deserializing straight into domain models. Empty or whitespace-only lines are skipped with zero allocations, and memory buffers are returned to the pipeline's memory pool immediately.
+
+### 3. Pre-Compiled Lambda Expressions
 
 Dynamic property accessors often use `System.Reflection`, which boxes value types and causes constant heap allocations. FastIngest pre-compiles strongly-typed lambda expressions (`Expression<Func<TRecord, object?>>`) during profile initialization. Mapping and reading values incurs no reflection penalty.
 
-### 3. Bounded Channel Buffering & Backpressure
+### 4. Bounded Channel Buffering & Backpressure
 
 Records are accumulated in batches capped at your configured `batchSize` (default: `5,000`). Batches are posted to a bounded `System.Threading.Channels.Channel<IReadOnlyList<TRecord>>` configured with `BoundedChannelFullMode.Wait`:
 1. Even when CPU row parsing outpaces database socket writes, the producer task pauses at `WriteAsync` whenever the channel reaches capacity (default: 2 batches).

@@ -39,6 +39,7 @@ export default defineConfig({
         items: [
           { text: 'Introduction', link: '/guide/introduction' },
           { text: 'Quickstart', link: '/guide/getting-started' },
+          { text: 'NDJSON / JSON Lines', link: '/guide/json-lines' },
           { text: 'Dependency Injection', link: '/guide/dependency-injection' },
           { text: 'Validation & Errors', link: '/guide/validation' }
         ]

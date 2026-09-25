@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "FastIngest"
   text: "Zero-Allocation Bulk Ingestion Pipeline for .NET"
-  tagline: "Stream CSV & Excel files straight into PostgreSQL, SQL Server, MongoDB, Cosmos, and Elasticsearch with zero memory bloat and built-in validation."
+  tagline: "Stream CSV, Excel & JSON Lines (NDJSON) straight into PostgreSQL, SQL Server, MongoDB, Cosmos, and Elasticsearch with zero memory bloat and built-in validation."
   image:
     src: /logo.svg
     alt: FastIngest Logo
@@ -19,10 +19,13 @@ hero:
 features:
   - icon: ⚡
     title: Constant Memory (O(1))
-    details: Stream 10GB+ CSV and Excel datasets with a completely flat memory footprint. Built on top of Sylvan's zero-allocation streaming parser to eliminate GC pressure.
+    details: Stream 10GB+ CSV, Excel, and JSON Lines datasets with a completely flat memory footprint. Zero-allocation Sylvan CSV and PipeReader NDJSON streaming eliminate GC pressure.
   - icon: 🔄
     title: Producer-Consumer Channels
     details: Decouples CPU stream parsing and validation from database socket operations using System.Threading.Channels with bounded backpressure.
+  - icon: 📄
+    title: CSV & JSON Lines (NDJSON)
+    details: High-speed streaming parsers for CSV and line-delimited JSON with automatic format detection heuristics (extensions and content inspection).
   - icon: 🗄️
     title: 7 High-Speed Sinks
     details: Native database integrations including PostgreSQL binary COPY, SQL Server SqlBulkCopy, MySQL BulkCopy, SQLite WAL batching, MongoDB unordered writes, Cosmos DB, and Elasticsearch.

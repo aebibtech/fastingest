@@ -138,3 +138,22 @@ foreach (IngestRowError error in result.Errors)
         error.ErrorMessage);
 }
 ```
+
+---
+
+## JSON Lines (NDJSON) Syntax & Deserialization Errors
+
+When ingesting line-delimited JSON (`FileType.JsonLines`), errors can occur at two distinct phases:
+
+1. **Syntax & Schema Deserialization**: A line contains invalid JSON syntax (e.g., missing brackets, unquoted tokens, or type conversion mismatches like a string provided for a numeric property).
+2. **Domain Business Validation**: The line deserializes into `TRecord` successfully, but fails rules defined in `IValidator<TRecord>`.
+
+FastIngest seamlessly unifies both categories into the same `IngestRowError` model and error manifest:
+
+| Error Type | `RowIndex` | `ColumnName` | `AttemptedValue` | `ErrorMessage` |
+| :--- | :--- | :--- | :--- | :--- |
+| **JSON Syntax Error** | `15` | `null` | `{"id": 15, "balance": abc}` | `JSON parsing failed on row 15: The JSON value could not be converted...` |
+| **Schema Type Error** | `42` | `$.age` | `{"id": 42, "age": "not_an_int"}` | `JSON parsing failed on row 42: The JSON value could not be converted to System.Int32.` |
+| **FluentValidation Error** | `88` | `CustomerEmail` | `not-an-email` | `A valid email address is required.` |
+
+Both `FailFast` and `CollectAndContinue` strategies apply uniformly to JSON syntax and domain validation errors. For more details on JSON Lines streaming, see the [NDJSON / JSON Lines Guide](/guide/json-lines).

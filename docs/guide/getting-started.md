@@ -83,8 +83,11 @@ using FastIngest.Core.Pipeline;
 using FastIngest.PostgreSql.Extensions;
 using Npgsql;
 
+::: code-group
+
+```csharp [CSV Ingestion]
 await using var stream = File.OpenRead("customers.csv");
-await using var connection = new NpgsqlConnection("Host=localhost;Database=mydb;Username=postgres;Password=secret");
+await using var connection = new NpgsqlConnection(connectionString);
 await connection.OpenAsync();
 
 var result = await FastIngestPipeline<CustomerRecord>.Create()
@@ -103,6 +106,35 @@ var result = await FastIngestPipeline<CustomerRecord>.Create()
 
 Console.WriteLine($"Done! Succeeded: {result.TotalSucceeded:N0}, Failed: {result.TotalFailed:N0}");
 ```
+
+```csharp [JSON Lines (NDJSON)]
+await using var stream = File.OpenRead("customers.jsonl");
+await using var connection = new NpgsqlConnection(connectionString);
+await connection.OpenAsync();
+
+// Automatically streams each line via PipeReader & Utf8JsonReader
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.JsonLines) // Or FileType.Ndjson
+    .WithJsonOptions(opt => opt.PropertyNameCaseInsensitive = true)
+    .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
+    .WithBatchSize(5000)
+    .WithChannelCapacity(2)
+    .OnProgress(p => Console.WriteLine($"Processed {p.RowsProcessed} rows ({p.PercentComplete:F1}%)..."))
+    .WriteToPostgresAsync(connection, "customers");
+
+Console.WriteLine($"Done! Succeeded: {result.TotalSucceeded:N0}, Failed: {result.TotalFailed:N0}");
+```
+
+:::
+
+> [!TIP] Format Auto-Detection
+> FastIngest can automatically detect file formats using extensions (`.csv`, `.jsonl`, `.ndjson`) or content inspection (leading `{` on seekable streams):
+> ```csharp
+> pipeline.FromStream(stream, "upload.jsonl", FileType.AutoDetect);
+> // Or directly from disk:
+> pipeline.FromFile("customers.jsonl");
+> ```
+> For an in-depth dive into line-delimited JSON ingestion, see the [NDJSON / JSON Lines Guide](/guide/json-lines).
 
 ### Channel Tuning & Concurrency
 

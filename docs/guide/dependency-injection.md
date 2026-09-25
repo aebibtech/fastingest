@@ -19,6 +19,7 @@ dotnet add package FastIngest.Extensions.DependencyInjection
 Ingestion profiles encapsulate destination tables, column mappings, batch sizes, and error strategies for a specific record type. Pre-compiled mapping expressions are registered as singletons in memory, avoiding redundant compilation per request.
 
 ```csharp
+using System.Text.Json;
 using FastIngest.Core.Common;
 using FastIngest.Extensions.DependencyInjection.Profiles;
 
@@ -32,9 +33,17 @@ public class CustomerImportProfile : FastIngestProfile<CustomerRecord>
         WithBatchSize(5000);
         WithChannelCapacity(3); // Keep up to 3 batches in flight concurrently
         WithErrorStrategy(ErrorStrategy.CollectAndContinue);
-        WithFileType(FileType.Csv);
+        
+        // AutoDetect seamlessly handles both CSV and JSON Lines (.jsonl / .ndjson)
+        WithFileType(FileType.AutoDetect);
 
-        // Map model properties to tabular column headers
+        // Optional: configure JSON serialization options for JSON Lines
+        WithJsonOptions(new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        // Map model properties to tabular column headers (for CSV/tabular sources)
         Map(x => x.Id, "customer_id");
         Map(x => x.Email, "email");
         Map(x => x.FullName, "full_name");
