@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Documentation for FastIngest bulk ingestion pipeline for .NET",
+  "homepage": "https://aebibtech.github.io/fastingest",
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev .",

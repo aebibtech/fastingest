@@ -3,6 +3,7 @@
 [![CI/CD](https://github.com/aebibtech/fastingest/actions/workflows/ci.yml/badge.svg)](https://github.com/aebibtech/fastingest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NuGet](https://img.shields.io/nuget/v/FastIngest.Core.svg)](https://www.nuget.org/packages/FastIngest.Core)
+[![Documentation](https://img.shields.io/badge/docs-website-brightgreen.svg)](https://aebibtech.github.io/fastingest)
 
 **FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV, XLSX, and NDJSON/JSONL to PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, concurrent producer-consumer bounded channels, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
 
@@ -170,7 +171,7 @@ Official **BenchmarkDotNet** suite results comparing FastIngest streaming binary
 ├── FastIngest.sln
 ├── benchmarks/
 │   └── FastIngest.Benchmarks/     # BenchmarkDotNet performance suite
-├── docs/                          # VitePress documentation website
+├── docs/                          # VitePress documentation website (https://aebibtech.github.io/fastingest)
 ├── src/
 │   ├── FastIngest.Core/           # Core pipeline, channels, binders, CSV & NDJSON/JSONL streaming readers
 │   ├── FastIngest.PostgreSql/     # PostgreSQL native binary COPY sink

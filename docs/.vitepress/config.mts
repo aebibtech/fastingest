@@ -6,6 +6,9 @@ export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/fastingest/' : '/',
   cleanUrls: true,
   lastUpdated: true,
+  sitemap: {
+    hostname: 'https://aebibtech.github.io/fastingest'
+  },
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
