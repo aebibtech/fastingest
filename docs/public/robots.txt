@@ -1,0 +1,43 @@
+# robots.txt for fastingest.aebibtech.com
+User-agent: *
+Allow: /
+
+# LLM Crawlers & AI Search Engines
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Diffbot
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+# LLM Discoverability Endpoints (llmstxt.org standard)
+# Structured markdown index: /llms.txt
+# Full plain-text context: /llms-full.txt
+
+Sitemap: https://fastingest.aebibtech.com/sitemap.xml

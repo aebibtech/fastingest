@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress'
+import { generateLlms } from '../scripts/generate-llms.mjs'
 
 // Target platform detection:
 // - Cloudflare Pages sets CF_PAGES=1 during build, or DOCS_ENV can be set to 'cloudflare'.
@@ -27,7 +28,33 @@ export default defineConfig({
     ['meta', { property: 'og:locale', content: 'en' }],
     ['meta', { property: 'og:title', content: 'FastIngest | High-Throughput Bulk Ingestion for .NET' }],
     ['meta', { property: 'og:site_name', content: 'FastIngest' }],
-    ['meta', { property: 'og:description', content: 'Constant-memory bulk ingestion pipeline for .NET with support for PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch.' }]
+    ['meta', { property: 'og:description', content: 'Constant-memory bulk ingestion pipeline for .NET with support for PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch.' }],
+    // LLM Discoverability
+    ['link', { rel: 'alternate', type: 'text/markdown', href: `${base.replace(/\/$/, '')}/llms.txt`, title: 'LLM Documentation (llms.txt)' }],
+    ['link', { rel: 'alternate', type: 'text/markdown', href: `${base.replace(/\/$/, '')}/llms-full.txt`, title: 'Full LLM Documentation (llms-full.txt)' }],
+    [
+      'script',
+      { type: 'application/ld+json' },
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareSourceCode',
+        name: 'FastIngest',
+        description: 'Zero-allocation, constant-memory bulk ingestion pipeline for .NET streaming CSV, Excel, and JSON Lines directly into PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch.',
+        programmingLanguage: {
+          '@type': 'ComputerLanguage',
+          name: 'C#',
+          version: '12.0 / .NET 9'
+        },
+        codeRepository: 'https://github.com/aebibtech/fastingest',
+        documentation: 'https://fastingest.aebibtech.com',
+        license: 'https://opensource.org/licenses/MIT',
+        author: {
+          '@type': 'Person',
+          name: 'Paul Camano',
+          url: 'https://github.com/aebibtech'
+        }
+      })
+    ]
   ],
 
   themeConfig: {
@@ -42,6 +69,13 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Sinks', link: '/sinks/postgresql' },
       { text: 'Benchmarks', link: '/benchmarks/performance' },
+      {
+        text: 'LLM Docs',
+        items: [
+          { text: 'llms.txt (Index)', link: '/llms.txt', target: '_blank' },
+          { text: 'llms-full.txt (Full Context)', link: '/llms-full.txt', target: '_blank' }
+        ]
+      },
       { text: 'NuGet', link: 'https://www.nuget.org/packages/FastIngest.Core' }
     ],
 
@@ -101,5 +135,12 @@ export default defineConfig({
       light: 'github-light',
       dark: 'github-dark'
     }
+  },
+
+  buildEnd: async (siteConfig) => {
+    generateLlms({
+      baseUrl: hostname,
+      outDirs: [siteConfig.outDir]
+    })
   }
 })

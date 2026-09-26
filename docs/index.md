@@ -13,6 +13,9 @@ hero:
       text: Get Started
       link: /guide/getting-started
     - theme: alt
+      text: LLM Context (llms.txt)
+      link: /llms.txt
+    - theme: alt
       text: View on GitHub
       link: https://github.com/aebibtech/fastingest
 
@@ -80,5 +83,12 @@ Console.WriteLine($"Ingested {result.TotalSucceeded:N0} rows in {result.Duration
 | **MongoDB** | Unordered `BulkWriteAsync` (`InsertOneModel`) | 85,000+ rows/sec | Constant (~30 MB) |
 | **Azure Cosmos DB** | Concurrent Dispatch + `AllowBulkExecution` | 35,000+ docs/sec | Constant (~32 MB) |
 | **Elasticsearch** | `BulkAsync` (`IndexOperation`) NDJSON Chunking | 65,000+ docs/sec | Constant (~35 MB) |
+
+## Built for AI & LLM Coding Assistants
+
+FastIngest provides machine-readable documentation conforming to the [llms.txt](https://llmstxt.org/) standard. When asking questions in Cursor, Windsurf, Claude Code, GitHub Copilot, or ChatGPT:
+
+- **[`/llms.txt`](/llms.txt)**: Fast, token-efficient index of all concepts, architecture guides, and database sinks.
+- **[`/llms-full.txt`](/llms-full.txt)**: Comprehensive single-file documentation for instant context window ingestion.
 
 </div>

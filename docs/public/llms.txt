@@ -1,0 +1,78 @@
+# FastIngest
+
+> FastIngest is a zero-allocation, high-throughput, constant-memory (O(1)) bulk ingestion pipeline for .NET 9+. It streams massive CSV, Excel, and line-delimited JSON (NDJSON / .jsonl) datasets directly into native database bulk protocols—including PostgreSQL binary COPY, SQL Server SqlBulkCopy, MySQL BulkCopy, SQLite WAL batching, MongoDB unordered BulkWrite, Azure Cosmos DB, and Elasticsearch—with bounded channel backpressure, pre-compiled zero-reflection mapping, and FluentValidation error manifests.
+
+FastIngest solves the problem of high memory consumption and GC freezes when importing multi-million row datasets. Memory usage remains constant (~20-35 MB) regardless of file size (100 rows or 50M+ rows).
+
+- Documentation: https://fastingest.aebibtech.com
+- Full Context Documentation: https://fastingest.aebibtech.com/llms-full.txt
+- GitHub Repository: https://github.com/aebibtech/fastingest
+- NuGet Package: https://www.nuget.org/packages/FastIngest.Core
+
+## Quickstart Example
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.PostgreSql.Extensions;
+using Npgsql;
+
+await using var stream = File.OpenRead("customers.csv");
+await using var connection = new NpgsqlConnection(connectionString);
+await connection.OpenAsync();
+
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.Id, "customer_id");
+        m.Map(x => x.Email, "email");
+        m.Map(x => x.FullName, "full_name");
+        m.Map(x => x.Balance, "balance");
+    })
+    .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
+    .WithBatchSize(10_000)
+    .WithChannelCapacity(2)
+    .WriteToPostgresAsync(connection, "customers");
+
+Console.WriteLine($"Ingested {result.TotalSucceeded:N0} rows in {result.Duration.TotalSeconds:F1}s!");
+```
+
+## Getting Started
+
+- [Introduction](https://fastingest.aebibtech.com/guide/introduction): Architecture overview, O(1) constant-memory model, producer-consumer design, and comparison with traditional ingestion bottlenecks.
+- [Quickstart Guide](https://fastingest.aebibtech.com/guide/getting-started): 5-minute setup guide covering installation, record definitions, FluentValidation rules, pipeline builder execution, and inspecting IngestResult.
+- [NDJSON / JSON Lines Streaming](https://fastingest.aebibtech.com/guide/json-lines): Zero-allocation streaming ingestion for line-delimited JSON using PipeReader and Utf8JsonReader with automatic format detection.
+- [Dependency Injection & ASP.NET Core](https://fastingest.aebibtech.com/guide/dependency-injection): Registering FastIngest in ASP.NET Core IServiceCollection, using IFastIngestEngine, ingestion profiles, and background workers.
+- [Validation & Error Handling](https://fastingest.aebibtech.com/guide/validation): FluentValidation integration, FailFast vs CollectAndContinue strategies, error manifests, and exporting error CSVs.
+
+## Database Sinks
+
+- [PostgreSQL Sink (Native Binary COPY)](https://fastingest.aebibtech.com/sinks/postgresql): Native binary COPY FROM STDIN protocol via Npgsql BeginBinaryImportAsync at 180,000+ rows/sec with zero SQL parsing.
+- [SQL Server Sink (SqlBulkCopy)](https://fastingest.aebibtech.com/sinks/sql-server): Streaming SqlBulkCopy backed by custom BatchDataReader<TRecord> at 140,000+ rows/sec with zero DataTable materialization.
+- [MySQL / MariaDB Sink](https://fastingest.aebibtech.com/sinks/mysql): High-speed MySqlBulkCopy with local infile and batched multi-row transactional fallback at 110,000+ rows/sec.
+- [SQLite Sink (WAL Batch)](https://fastingest.aebibtech.com/sinks/sqlite): Transactional batch inserts optimized for Write-Ahead Logging (WAL) mode at 95,000+ rows/sec.
+- [MongoDB Sink (BulkWrite)](https://fastingest.aebibtech.com/sinks/mongodb): Unordered BulkWriteAsync using InsertOneModel<TRecord> batches at 85,000+ docs/sec.
+- [Azure Cosmos DB Sink](https://fastingest.aebibtech.com/sinks/cosmosdb): Concurrent point-write dispatching with AllowBulkExecution at 35,000+ docs/sec.
+- [Elasticsearch Sink](https://fastingest.aebibtech.com/sinks/elasticsearch): Bulk API chunking with raw NDJSON payload streaming at 65,000+ docs/sec.
+
+## Architecture & Benchmarks
+
+- [Memory Model & Bounded Channels](https://fastingest.aebibtech.com/benchmarks/memory-model): Deep dive into bounded System.Threading.Channels, backpressure mechanics, Gen 0/1/2 GC analysis, and O(1) memory guarantees.
+- [Performance Benchmarks](https://fastingest.aebibtech.com/benchmarks/performance): Comprehensive BenchmarkDotNet results across 100K, 1M, and 10M rows comparing FastIngest against EF Core and Dapper.
+
+## Packages & Installation
+
+- `FastIngest.Core`: Core pipeline abstractions, streaming readers (CSV, JSON Lines), channel coordination, and validation.
+- `FastIngest.PostgreSql`: Native binary COPY sink for PostgreSQL.
+- `FastIngest.SqlServer`: SqlBulkCopy streaming sink for Microsoft SQL Server.
+- `FastIngest.MySql`: BulkCopy sink for MySQL and MariaDB.
+- `FastIngest.Sqlite`: Parameterized batch WAL sink for SQLite.
+- `FastIngest.MongoDb`: Unordered BulkWrite sink for MongoDB.
+- `FastIngest.CosmosDb`: Bulk executor sink for Azure Cosmos DB.
+- `FastIngest.Elasticsearch`: Bulk API sink for Elasticsearch.
+- `FastIngest.Extensions.DependencyInjection`: Dependency injection extensions, IFastIngestEngine, and profile registry for ASP.NET Core.
+
+## Optional & Deep Dive
+
+- [Full Consolidated Context](https://fastingest.aebibtech.com/llms-full.txt): Complete documentation concatenated into a single plain-text Markdown file for LLM context windows and RAG systems.
+- [Sitemap](https://fastingest.aebibtech.com/sitemap.xml): Complete XML sitemap of all documentation pages.

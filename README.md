@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![NuGet](https://img.shields.io/nuget/v/FastIngest.Core.svg)](https://www.nuget.org/packages/FastIngest.Core)
 [![Documentation](https://img.shields.io/badge/docs-website-brightgreen.svg)](https://fastingest.aebibtech.com)
+[![llms.txt](https://img.shields.io/badge/llms.txt-standard-blue.svg)](https://fastingest.aebibtech.com/llms.txt)
 
 **FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline for .NET (CSV, XLSX, and NDJSON/JSONL to PostgreSQL, SQL Server, MySQL, SQLite, MongoDB, Cosmos DB, and Elasticsearch). Designed for enterprise workloads processing millions of rows without memory spikes, FastIngest leverages zero-allocation streaming readers, concurrent producer-consumer bounded channels, fluent validation, and native database bulk protocols (such as PostgreSQL binary `COPY`, SQL Server `SqlBulkCopy`, and MongoDB unordered `BulkWriteAsync`).
 
@@ -160,6 +161,15 @@ Official **BenchmarkDotNet** suite results comparing FastIngest streaming binary
 | EfCore_Naive (Baseline) | 100,000 | 2,691.6 ms | 1.00 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
 
 *Run the benchmarks yourself with `./benchmarks/run-benchmarks.sh`. See full analysis in [`docs/benchmarks/performance.md`](docs/benchmarks/performance.md).*
+
+---
+
+## LLM & AI Discoverability
+
+FastIngest provides machine-readable documentation endpoints adhering to the [`llms.txt`](https://llmstxt.org/) standard for AI coding assistants (such as Cursor, Windsurf, Claude Code, GitHub Copilot, and ChatGPT):
+
+- **Documentation Index**: [`https://fastingest.aebibtech.com/llms.txt`](https://fastingest.aebibtech.com/llms.txt)
+- **Full Consolidated Context**: [`https://fastingest.aebibtech.com/llms-full.txt`](https://fastingest.aebibtech.com/llms-full.txt)
 
 ---
 

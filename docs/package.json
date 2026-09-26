@@ -6,10 +6,11 @@
   "homepage": "https://fastingest.aebibtech.com",
   "type": "module",
   "scripts": {
-    "docs:dev": "vitepress dev .",
-    "docs:build": "vitepress build .",
-    "docs:build:github": "DOCS_ENV=github vitepress build .",
-    "docs:build:cloudflare": "DOCS_ENV=cloudflare vitepress build .",
+    "docs:dev": "node scripts/generate-llms.mjs && vitepress dev .",
+    "docs:llms": "node scripts/generate-llms.mjs",
+    "docs:build": "node scripts/generate-llms.mjs && vitepress build .",
+    "docs:build:github": "node scripts/generate-llms.mjs && DOCS_ENV=github vitepress build .",
+    "docs:build:cloudflare": "node scripts/generate-llms.mjs && DOCS_ENV=cloudflare vitepress build .",
     "docs:preview": "vitepress preview ."
   },
   "devDependencies": {

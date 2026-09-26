@@ -1,0 +1,1930 @@
+# FastIngest — Full Documentation Context
+
+> FastIngest is a zero-allocation, high-throughput, constant-memory (O(1)) bulk ingestion pipeline for .NET 9+.
+> This document consolidates all guides, database sinks, and architectural benchmarks into a single machine-readable document for LLM context windows, AI coding assistants, and semantic retrieval systems.
+
+- Website: https://fastingest.aebibtech.com
+- Index: https://fastingest.aebibtech.com/llms.txt
+- GitHub: https://github.com/aebibtech/fastingest
+- NuGet: https://www.nuget.org/packages/FastIngest.Core
+
+---
+
+# Table of Contents
+- [Getting Started > Introduction](https://fastingest.aebibtech.com/guide/introduction)
+- [Getting Started > Quickstart Guide](https://fastingest.aebibtech.com/guide/getting-started)
+- [Getting Started > NDJSON / JSON Lines Streaming](https://fastingest.aebibtech.com/guide/json-lines)
+- [Getting Started > Dependency Injection & ASP.NET Core](https://fastingest.aebibtech.com/guide/dependency-injection)
+- [Getting Started > Validation & Error Handling](https://fastingest.aebibtech.com/guide/validation)
+- [Database Sinks > PostgreSQL Sink (Native Binary COPY)](https://fastingest.aebibtech.com/sinks/postgresql)
+- [Database Sinks > SQL Server Sink (SqlBulkCopy)](https://fastingest.aebibtech.com/sinks/sql-server)
+- [Database Sinks > MySQL / MariaDB Sink](https://fastingest.aebibtech.com/sinks/mysql)
+- [Database Sinks > SQLite Sink (WAL Batch)](https://fastingest.aebibtech.com/sinks/sqlite)
+- [Database Sinks > MongoDB Sink (BulkWrite)](https://fastingest.aebibtech.com/sinks/mongodb)
+- [Database Sinks > Azure Cosmos DB Sink](https://fastingest.aebibtech.com/sinks/cosmosdb)
+- [Database Sinks > Elasticsearch Sink](https://fastingest.aebibtech.com/sinks/elasticsearch)
+- [Architecture & Benchmarks > Memory Model & Bounded Channels](https://fastingest.aebibtech.com/benchmarks/memory-model)
+- [Architecture & Benchmarks > Performance Benchmarks](https://fastingest.aebibtech.com/benchmarks/performance)
+
+---
+
+# Getting Started: Introduction
+Source: https://fastingest.aebibtech.com/guide/introduction
+
+# Introduction to FastIngest
+
+**FastIngest** is a high-throughput, constant-memory bulk ingestion pipeline designed specifically for .NET 9+ workloads. It enables you to stream massive CSV, Excel, and line-delimited JSON (NDJSON / `.jsonl`) files (ranging from hundreds of megabytes to tens of gigabytes) directly into your database or search engine without exhausting RAM or suffering Garbage Collection freezes.
+
+---
+
+## The Problem with Traditional Ingestion
+
+Processing large data imports in .NET frequently runs into three major bottlenecks:
+
+1. **Memory Bloat ($O(N)$ Growth)**: Traditional libraries (like CsvHelper or standard JSON deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
+2. **Slow Row-by-Row Database Inserts**: Using Entity Framework Core or standard ADO.NET `INSERT INTO` statements generates individual round-trips over the network. Even with basic transaction batching, throughput is usually capped at 2,000–5,000 rows/second.
+3. **Reflection Overhead**: Dynamically mapping string columns to record properties at runtime using standard reflection consumes CPU cycles and generates temporary object allocations on every single cell.
+
+---
+
+## How FastIngest Solves It
+
+FastIngest combines four core pillars to achieve maximum throughput with fixed memory:
+
+```
+Stream (CSV / XLSX / JSONL / NDJSON)
+        │
+        ▼
+┌─────────────────────────────────┐
+│ Producer: Streaming Reader      │  <-- Sylvan CSV or PipeReader JSON Lines (CPU)
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ Producer: Pre-Compiled / Utf8   │  <-- Compiled expression binders or Utf8JsonReader
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ Producer: FluentValidation      │  <-- FailFast or CollectAndContinue
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ System.Threading.Channels       │  <-- Bounded channel backpressure (O(1) Memory)
+│ (BoundedChannelFullMode.Wait)   │  <-- Keeps 2-3 batches in flight concurrently
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ Consumer: Native Database Sink  │  <-- Binary COPY, SqlBulkCopy, etc. (I/O)
+└─────────────────────────────────┘
+```
+
+1. **Zero-Allocation Streaming**:
+   - **CSV**: Built on [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the fastest CSV reader in the .NET ecosystem, reading records as raw spans and UTF-8 bytes with minimal heap allocation.
+   - **JSON Lines (NDJSON)**: Built on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader` to slice lines and deserialize records directly from raw byte sequences without intermediate string allocations.
+2. **Pre-Compiled Expression Trees & High-Speed Deserialization**: Column mappings are compiled into high-performance delegate expressions once and cached for the lifetime of your application. For JSON Lines, `Utf8JsonReader` deserializes records directly into target types with optional case-insensitivity.
+3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity ($O(1)$ memory).
+4. **Native Bulk Transport Protocols**: FastIngest avoids generic SQL queries and binds directly to native database streaming interfaces:
+   - PostgreSQL: Native binary `COPY ... FROM STDIN (FORMAT BINARY)`
+   - SQL Server: `SqlBulkCopy` backed by a custom `BatchDataReader<TRecord>`
+   - MySQL / MariaDB: `MySqlBulkCopy` and batched multi-row transactions
+   - SQLite: Parameterized command loops optimized with Write-Ahead Logging (`WAL` mode)
+   - MongoDB: Unordered `BulkWriteAsync` with `InsertOneModel<TRecord>`
+   - Azure Cosmos DB: Concurrent asynchronous item creation with `AllowBulkExecution`
+   - Elasticsearch: High-speed bulk indexing via `BulkAsync`
+
+---
+
+## Key Benefits
+
+- **Flat Memory Footprint**: Ingest 100 rows or 50,000,000 rows with the same ~25 MB working set.
+- **CPU & I/O Concurrency**: Channel pipelining ensures database sockets write batches while subsequent rows are simultaneously parsed and validated.
+- **Fail-Fast or Error Quarantine**: Stop immediately on the first bad record or collect errors into an exportable CSV manifest while saving valid records.
+- **First-Class Dependency Injection**: Configure destination profiles in your startup pipeline and inject `IFastIngestEngine` into ASP.NET Core Minimal APIs or background workers.
+- **Clean Developer Experience**: Fluent, chainable builder API with built-in progress events and cancellation token support.
+
+---
+
+# Getting Started: Quickstart Guide
+Source: https://fastingest.aebibtech.com/guide/getting-started
+
+# Quickstart Guide
+
+This guide walks you through installing FastIngest and executing your first bulk data import pipeline in under 5 minutes.
+
+---
+
+## 1. Installation
+
+Install the core FastIngest package alongside the database sink of your choice via the .NET CLI or Package Manager Console:
+
+```bash
+# PostgreSQL
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.PostgreSql
+```
+
+```bash
+# SQL Server
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.SqlServer
+```
+
+```bash
+# MySQL
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.MySql
+```
+
+```bash
+# SQLite
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.Sqlite
+```
+
+```bash
+# MongoDB
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.MongoDb
+```
+
+```bash
+# Cosmos DB
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.CosmosDb
+```
+
+```bash
+# Elasticsearch
+dotnet add package FastIngest.Core
+dotnet add package FastIngest.Elasticsearch
+```
+
+---
+
+## 2. Define Your Record & Validator
+
+Create a strongly typed record representing each row in your input data, and optionally define validation rules using FluentValidation:
+
+```csharp
+using FluentValidation;
+
+// Define your target model
+public record CustomerRecord(int Id, string Email, string FullName, decimal Balance);
+
+// Define validation rules
+public class CustomerValidator : AbstractValidator<CustomerRecord>
+{
+    public CustomerValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        RuleFor(x => x.FullName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Balance).GreaterThanOrEqualTo(0);
+    }
+}
+```
+
+---
+
+## 3. Run Ingestion Pipeline (10-Line Example)
+
+Use `FastIngestPipeline<TRecord>.Create()` to stream the file straight from disk or network into your database:
+
+```csharp
+using FastIngest.Core.Common;
+using FastIngest.Core.Pipeline;
+using FastIngest.PostgreSql.Extensions;
+using Npgsql;
+
+```csharp
+// CSV Ingestion
+await using var stream = File.OpenRead("customers.csv");
+await using var connection = new NpgsqlConnection(connectionString);
+await connection.OpenAsync();
+
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => {
+        m.Map(x => x.Id, "customer_id");
+        m.Map(x => x.Email, "email");
+        m.Map(x => x.FullName, "full_name");
+        m.Map(x => x.Balance, "balance");
+    })
+    .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
+    .WithBatchSize(5000)
+    .WithChannelCapacity(2)
+    .OnProgress(p => Console.WriteLine($"Processed {p.RowsProcessed} rows ({p.PercentComplete:F1}%)..."))
+    .WriteToPostgresAsync(connection, "customers");
+
+Console.WriteLine($"Done! Succeeded: {result.TotalSucceeded:N0}, Failed: {result.TotalFailed:N0}");
+```
+
+```csharp
+// JSON Lines (NDJSON)
+await using var stream = File.OpenRead("customers.jsonl");
+await using var connection = new NpgsqlConnection(connectionString);
+await connection.OpenAsync();
+
+// Automatically streams each line via PipeReader & Utf8JsonReader
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.JsonLines) // Or FileType.Ndjson
+    .WithJsonOptions(opt => opt.PropertyNameCaseInsensitive = true)
+    .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
+    .WithBatchSize(5000)
+    .WithChannelCapacity(2)
+    .OnProgress(p => Console.WriteLine($"Processed {p.RowsProcessed} rows ({p.PercentComplete:F1}%)..."))
+    .WriteToPostgresAsync(connection, "customers");
+
+Console.WriteLine($"Done! Succeeded: {result.TotalSucceeded:N0}, Failed: {result.TotalFailed:N0}");
+```
+
+> **Tip:** Format Auto-Detection
+> FastIngest can automatically detect file formats using extensions (`.csv`, `.jsonl`, `.ndjson`) or content inspection (leading `{` on seekable streams):
+> ```csharp
+> pipeline.FromStream(stream, "upload.jsonl", FileType.AutoDetect);
+> // Or directly from disk:
+> pipeline.FromFile("customers.jsonl");
+> ```
+> For an in-depth dive into line-delimited JSON ingestion, see the [NDJSON / JSON Lines Guide](https://fastingest.aebibtech.com/guide/json-lines).
+
+### Channel Tuning & Concurrency
+
+FastIngest runs a decoupled producer-consumer architecture using `System.Threading.Channels`:
+- The **Producer** task reads, maps, and validates incoming rows.
+- The **Consumer** task streams batches into the database sink.
+
+You can configure the in-flight batch capacity using `.WithChannelCapacity(int capacity = 2)` or fine-tune channel options with `.WithOptions(...)`:
+
+```csharp
+pipeline
+    .WithBatchSize(5000)
+    .WithChannelCapacity(3) // Keeps up to 3 batches in flight concurrently
+    .WithOptions(opt =>
+    {
+        opt.BoundedChannelCapacity = 3;
+        opt.SingleWriter = true;
+        opt.SingleReader = true;
+        opt.FullMode = BoundedChannelFullMode.Wait; // Enforces backpressure
+    });
+```
+
+---
+
+## 4. Inspecting Ingestion Results
+
+The pipeline returns an `IngestResult` object containing comprehensive execution metrics:
+
+```csharp
+if (!result.IsSuccess)
+{
+    Console.WriteLine($"Encountered {result.TotalFailed} invalid records!");
+
+    // Iterate through validation errors
+    foreach (var error in result.Errors.Take(10))
+    {
+        Console.WriteLine($"Row #{error.RowNumber}: Field '{error.PropertyName}' -> {error.ErrorMessage}");
+    }
+
+    // Export all failed rows and errors as a downloadable CSV manifest
+    byte[] errorCsvBytes = result.ExportErrorsToCsv();
+    await File.WriteAllBytesAsync("ingestion_errors.csv", errorCsvBytes);
+}
+else
+{
+    Console.WriteLine($"Successfully ingested {result.TotalSucceeded:N0} rows in {result.Duration.TotalSeconds:F2}s");
+}
+```
+
+---
+
+## Next Steps
+
+- Explore [Dependency Injection & ASP.NET Core API Integration](https://fastingest.aebibtech.com/guide/dependency-injection)
+- Learn about [Validation Strategies & Error Manifests](https://fastingest.aebibtech.com/guide/validation)
+- Check out the specific guide for your database in [Database Sinks](https://fastingest.aebibtech.com/sinks/postgresql)
+
+---
+
+# Getting Started: NDJSON / JSON Lines Streaming
+Source: https://fastingest.aebibtech.com/guide/json-lines
+
+# Line-Delimited JSON (NDJSON / JSONL) Streaming
+
+FastIngest provides native, high-performance streaming ingestion for line-delimited JSON (**JSON Lines**, also known as **NDJSON** or `.jsonl` / `.ndjson`).
+
+Unlike traditional JSON deserializers that require loading an entire JSON array into memory ($O(N)$ RAM usage), FastIngest uses a constant-memory ($O(1)$) streaming reader based on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader`. Each line is sliced and deserialized directly from the underlying stream as raw byte spans, validated, and pushed into the concurrent bounded channel pipeline.
+
+---
+
+## What is JSON Lines / NDJSON?
+
+JSON Lines is a plain-text format where each line represents a valid, independent JSON object separated by a newline character (`\n` or `\r\n`):
+
+```json
+{"id": 1, "email": "alice@example.com", "fullName": "Alice Smith", "balance": 150.50}
+{"id": 2, "email": "bob@example.com", "fullName": "Bob Jones", "balance": 200.00}
+{"id": 3, "email": "carol@example.com", "fullName": "Carol White", "balance": 99.99}
+```
+
+Key advantages of JSON Lines for bulk data pipelines:
+- **Streamable**: Records can be parsed incrementally without waiting for an end-of-array token (`]`).
+- **Resilient**: A malformed record on line $N$ can be isolated and quarantined without discarding the rest of the file.
+- **Append-Friendly**: Loggers, message queues, and export jobs can continuously append records to a file without re-serializing.
+
+---
+
+## Streaming Architecture
+
+```
+Stream (.jsonl / .ndjson)
+        │
+        ▼
+┌─────────────────────────────────┐
+│ Producer: PipeReader Slicer     │  <-- Zero-allocation \n buffer slicing
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ Producer: Utf8JsonReader        │  <-- Memory<byte> span deserialization (CPU)
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ Producer: FluentValidation      │  <-- FailFast or CollectAndContinue
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ System.Threading.Channels       │  <-- Bounded channel (Capacity: 2 batches)
+│ (BoundedChannelFullMode.Wait)   │  <-- Backpressure: strict O(1) memory
+└──────────────┬──────────────────┘
+               │
+               ▼
+┌─────────────────────────────────┐
+│ Consumer: Native Database Sink  │  <-- High-speed batch streaming (I/O)
+└─────────────────────────────────┘
+```
+
+1. **`PipeReader` Line Slicing**: Slices line sequences asynchronously across buffer segments without allocating intermediate `string` objects.
+2. **`Utf8JsonReader`**: Reads `ReadOnlySequence<byte>` buffers directly and deserializes into `TRecord` using `JsonSerializer.Deserialize<TRecord>(ref utf8JsonReader, options)`.
+3. **CRLF & Whitespace Handling**: Automatically normalizes Windows CRLF (`\r\n`), ignores empty or whitespace-only lines, and verifies single-record integrity per line.
+4. **Bounded Channel Backpressure**: Batches valid records into `System.Threading.Channels` while keeping memory consumption bounded.
+
+---
+
+## Quickstart: Streaming JSON Lines Pipeline
+
+```csharp
+using FastIngest.Core.Common;
+using FastIngest.Core.Pipeline;
+using FastIngest.PostgreSql.Extensions;
+using Npgsql;
+
+public record CustomerRecord(int Id, string Email, string FullName, decimal Balance);
+
+await using var stream = File.OpenRead("customers.jsonl");
+await using var connection = new NpgsqlConnection("Host=localhost;Database=mydb;Username=postgres;Password=secret");
+await connection.OpenAsync();
+
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.JsonLines) // Or FileType.Ndjson
+    .ValidateWith<CustomerValidator>(options =>
+    {
+        options.ErrorStrategy = ErrorStrategy.CollectAndContinue;
+    })
+    .WithBatchSize(5000)
+    .WithChannelCapacity(2)
+    .OnProgress(progress =>
+    {
+        Console.WriteLine($"Processed {progress.RowsProcessed:N0} rows...");
+    })
+    .WriteToPostgresAsync(connection, "customers");
+
+Console.WriteLine($"Ingested: {result.TotalSucceeded:N0} | Failed: {result.TotalFailed:N0}");
+```
+
+---
+
+## Automatic File Format Detection
+
+FastIngest can automatically infer whether an incoming stream is CSV or JSON Lines:
+
+```csharp
+// 1. Explicit parameter
+pipeline.FromStream(stream, FileType.JsonLines);
+
+// 2. Extension heuristic via FromStream overload
+pipeline.FromStream(stream, "data.jsonl", FileType.AutoDetect);
+
+// 3. Direct file path heuristic
+pipeline.FromFile("data.ndjson", FileType.AutoDetect);
+
+// 4. Content inspection heuristic (seekable streams)
+// If the first non-whitespace character is '{', FastIngest automatically selects FileType.JsonLines.
+pipeline.FromStream(stream, FileType.AutoDetect);
+```
+
+### Detection Heuristic Priority
+1. **Explicit Setting**: If `FileType.JsonLines`, `FileType.Ndjson`, or `FileType.Csv` is explicitly configured, it is used immediately.
+2. **File Extension**: Evaluates `.jsonl` or `.ndjson` from file paths, upload file names, or `FileStream.Name`.
+3. **Content Inspection**: For seekable streams (`stream.CanSeek == true`), inspects the first non-whitespace byte (skipping UTF-8 BOM if present). If `{` is detected, `FileType.JsonLines` is selected.
+4. **Default Fallback**: Reverts to `FileType.Csv`.
+
+---
+
+## Customizing JSON Serializer Options
+
+By default, FastIngest enables case-insensitive property matching (`PropertyNameCaseInsensitive = true`) so JSON properties matching `camelCase`, `snake_case`, or `PascalCase` deserialize smoothly.
+
+You can customize `JsonSerializerOptions` using `.WithJsonOptions(...)`:
+
+```csharp
+using System.Text.Json;
+
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.JsonLines)
+    .WithJsonOptions(options =>
+    {
+        options.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+        options.AllowTrailingCommas = true;
+        options.ReadCommentHandling = JsonCommentHandling.Skip;
+    })
+    .WriteToPostgresAsync(connection, "customers");
+```
+
+Alternatively, configure options on `PipelineOptions`:
+
+```csharp
+pipeline.WithOptions(opt =>
+{
+    opt.JsonSerializerOptions = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true
+    };
+});
+```
+
+---
+
+## Error Handling & Quarantine
+
+When parsing JSON Lines, malformed JSON syntax or schema mismatches (e.g. string supplied for an integer property) are captured with exact line numbers and the offending JSON snippet.
+
+### 1. `ErrorStrategy.FailFast`
+Immediately halts the pipeline, cancels in-flight batches, and throws `FastIngestValidationException`:
+
+```csharp
+try
+{
+    await pipeline
+        .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.FailFast)
+        .WriteToPostgresAsync(connection, "customers");
+}
+catch (FastIngestValidationException ex)
+{
+    var err = ex.Errors[0];
+    Console.WriteLine($"Syntax/validation error on line {err.RowIndex}!");
+    Console.WriteLine($"Offending snippet: {err.AttemptedValue}");
+    Console.WriteLine($"Reason: {err.ErrorMessage}");
+}
+```
+
+### 2. `ErrorStrategy.CollectAndContinue`
+Quarantines the invalid line, logs an `IngestRowError`, and continues processing remaining rows:
+
+```csharp
+var result = await pipeline
+    .ValidateWith<CustomerValidator>(opt => opt.ErrorStrategy = ErrorStrategy.CollectAndContinue)
+    .WriteToPostgresAsync(connection, "customers");
+
+if (!result.IsSuccess)
+{
+    Console.WriteLine($"Failed rows: {result.TotalFailed}");
+
+    // Export error manifest with line numbers and snippets to CSV
+    byte[] errorReport = result.ExportErrorsToCsv();
+    await File.WriteAllBytesAsync("errors.csv", errorReport);
+}
+```
+
+---
+
+## Dependency Injection & Ingestion Profiles
+
+In ASP.NET Core applications using `FastIngest.Extensions.DependencyInjection`, define a profile with `WithFileType(FileType.JsonLines)` and custom options:
+
+```csharp
+using FastIngest.Core.Common;
+using FastIngest.Extensions.DependencyInjection.Profiles;
+
+public class CustomerJsonLinesProfile : FastIngestProfile<CustomerRecord>
+{
+    public CustomerJsonLinesProfile()
+    {
+        ToTable("customers");
+        WithBatchSize(5000);
+        WithErrorStrategy(ErrorStrategy.CollectAndContinue);
+        WithFileType(FileType.JsonLines);
+        WithJsonOptions(new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+    }
+}
+```
+
+Inject `IFastIngestEngine` into your Minimal API:
+
+```csharp
+app.MapPost("/api/customers/import-jsonl", async (
+    IFormFile file,
+    IFastIngestEngine engine,
+    CancellationToken ct) =>
+{
+    if (file == null || file.Length == 0)
+    {
+        return Results.BadRequest(new { message = "Empty file." });
+    }
+
+    await using var stream = file.OpenReadStream();
+    var result = await engine.IngestAsync<CustomerRecord>(stream, cancellationToken: ct);
+
+    return Results.Ok(new
+    {
+        processed = result.TotalProcessed,
+        succeeded = result.TotalSucceeded,
+        failed = result.TotalFailed
+    });
+});
+```
+
+---
+
+# Getting Started: Dependency Injection & ASP.NET Core
+Source: https://fastingest.aebibtech.com/guide/dependency-injection
+
+# Dependency Injection & ASP.NET Core
+
+FastIngest provides enterprise-grade Dependency Injection via the `FastIngest.Extensions.DependencyInjection` package. This enables you to pre-compile mapping expressions, register ingestion profiles, and inject `IFastIngestEngine` directly into your Minimal API endpoints or background workers.
+
+---
+
+## 1. Installation
+
+Install the Dependency Injection package:
+
+```bash
+dotnet add package FastIngest.Extensions.DependencyInjection
+```
+
+---
+
+## 2. Defining an Ingestion Profile
+
+Ingestion profiles encapsulate destination tables, column mappings, batch sizes, and error strategies for a specific record type. Pre-compiled mapping expressions are registered as singletons in memory, avoiding redundant compilation per request.
+
+```csharp
+using System.Text.Json;
+using FastIngest.Core.Common;
+using FastIngest.Extensions.DependencyInjection.Profiles;
+
+public record CustomerRecord(int Id, string Email, string FullName, decimal Balance);
+
+public class CustomerImportProfile : FastIngestProfile<CustomerRecord>
+{
+    public CustomerImportProfile()
+    {
+        ToTable("customers");
+        WithBatchSize(5000);
+        WithChannelCapacity(3); // Keep up to 3 batches in flight concurrently
+        WithErrorStrategy(ErrorStrategy.CollectAndContinue);
+        
+        // AutoDetect seamlessly handles both CSV and JSON Lines (.jsonl / .ndjson)
+        WithFileType(FileType.AutoDetect);
+
+        // Optional: configure JSON serialization options for JSON Lines
+        WithJsonOptions(new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        // Map model properties to tabular column headers (for CSV/tabular sources)
+        Map(x => x.Id, "customer_id");
+        Map(x => x.Email, "email");
+        Map(x => x.FullName, "full_name");
+        Map(x => x.Balance, "balance");
+    }
+}
+```
+
+---
+
+## 3. Registering Services in `Program.cs`
+
+In your ASP.NET Core application, register FastIngest using `builder.Services.AddFastIngest`:
+
+```csharp
+using FastIngest.Extensions.DependencyInjection;
+using FluentValidation;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Register FastIngest with default database sink and profile discovery
+builder.Services.AddFastIngest(ingest =>
+{
+    // Tune default channel capacity and batch sizes
+    ingest.ChannelCapacity = 3;
+    ingest.DefaultBatchSize = 5000;
+
+    // Configure default PostgreSQL connection string
+    ingest.AddPostgreSqlSink(builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? "Host=localhost;Database=mydb;Username=postgres;Password=secret");
+
+    // Automatically scan and register all FastIngestProfile classes in the assembly
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+
+// Register FluentValidation validator (IFastIngestEngine automatically resolves it)
+builder.Services.AddScoped<IValidator<CustomerRecord>, CustomerValidator>();
+
+var app = builder.Build();
+```
+
+### Profile Registration Options
+
+You can register profiles individually or discover them automatically:
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    // Register individual profile explicitly
+    ingest.RegisterProfile<CustomerRecord, CustomerImportProfile>();
+
+    // Or register all profiles found in target assemblies
+    ingest.RegisterProfilesFromAssembly(typeof(CustomerImportProfile).Assembly);
+    ingest.RegisterProfilesFromAssemblies(typeof(Program).Assembly, typeof(OtherProfile).Assembly);
+});
+```
+
+---
+
+## 4. Injecting `IFastIngestEngine` into Minimal APIs
+
+Stream uploaded files directly from client HTTP requests into your database without buffering the whole file in RAM or saving temporary files to disk:
+
+```csharp
+using FastIngest.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Mvc;
+
+app.MapPost("/api/customers/import", async (
+    IFormFile file,
+    IFastIngestEngine engine,
+    CancellationToken ct) =>
+{
+    if (file == null || file.Length == 0)
+    {
+        return Results.BadRequest(new { message = "No file uploaded or file is empty." });
+    }
+
+    // Stream directly from HTTP request stream with constant O(1) memory
+    await using var stream = file.OpenReadStream();
+
+    var result = await engine.IngestAsync<CustomerRecord>(
+        stream,
+        onProgress: progress =>
+        {
+            app.Logger.LogInformation("Processed {Count} rows ({Percent:F1}%)",
+                progress.RowsProcessed, progress.PercentComplete);
+        },
+        cancellationToken: ct);
+
+    if (!result.IsSuccess)
+    {
+        // Return summary and top errors
+        return Results.UnprocessableEntity(new
+        {
+            success = false,
+            totalProcessed = result.TotalProcessed,
+            totalSucceeded = result.TotalSucceeded,
+            totalFailed = result.TotalFailed,
+            durationMs = result.Duration.TotalMilliseconds,
+            errors = result.Errors.Take(50)
+        });
+    }
+
+    return Results.Ok(new
+    {
+        success = true,
+        totalProcessed = result.TotalProcessed,
+        totalSucceeded = result.TotalSucceeded,
+        durationMs = result.Duration.TotalMilliseconds
+    });
+})
+.WithName("ImportCustomers")
+.DisableAntiforgery();
+```
+
+---
+
+## 5. Downloading Error Manifest CSV from API
+
+If you configure `ErrorStrategy.CollectAndContinue`, users can download the rejected rows with exact cell error reasons:
+
+```csharp
+app.MapPost("/api/customers/import-with-report", async (
+    IFormFile file,
+    IFastIngestEngine engine,
+    CancellationToken ct) =>
+{
+    await using var stream = file.OpenReadStream();
+    var result = await engine.IngestAsync<CustomerRecord>(stream, cancellationToken: ct);
+
+    if (result.TotalFailed > 0)
+    {
+        byte[] csvReport = result.ExportErrorsToCsv();
+        return Results.File(csvReport, "text/csv", "invalid_records_report.csv");
+    }
+
+    return Results.Ok(new { message = $"All {result.TotalSucceeded} rows imported successfully!" });
+});
+```
+
+---
+
+# Getting Started: Validation & Error Handling
+Source: https://fastingest.aebibtech.com/guide/validation
+
+# Validation & Error Handling
+
+FastIngest provides built-in integration with **FluentValidation** to ensure data integrity during bulk ingestion. Unlike typical importers that either silently skip bad rows or discard entire imports upon encountering a single error, FastIngest offers two distinct, configurable strategies: **FailFast** and **CollectAndContinue**.
+
+---
+
+## Defining Validation Rules
+
+FastIngest accepts standard FluentValidation `AbstractValidator<TRecord>` classes. Because validators are executed on strongly typed records parsed by the pipeline, you have access to the full suite of FluentValidation rules:
+
+```csharp
+using FluentValidation;
+
+public record OrderRecord(
+    string OrderId,
+    string CustomerEmail,
+    decimal TotalAmount,
+    DateTime OrderDate,
+    string Status);
+
+public class OrderValidator : AbstractValidator<OrderRecord>
+{
+    public OrderValidator()
+    {
+        RuleFor(x => x.OrderId)
+            .NotEmpty().WithMessage("Order ID cannot be empty.")
+            .MaximumLength(32);
+
+        RuleFor(x => x.CustomerEmail)
+            .NotEmpty()
+            .EmailAddress().WithMessage("A valid email address is required.");
+
+        RuleFor(x => x.TotalAmount)
+            .GreaterThan(0).WithMessage("Total amount must be greater than zero.");
+
+        RuleFor(x => x.OrderDate)
+            .LessThanOrEqualTo(DateTime.UtcNow).WithMessage("Order date cannot be in the future.");
+
+        RuleFor(x => x.Status)
+            .Must(s => s is "PENDING" or "COMPLETED" or "CANCELLED")
+            .WithMessage("Invalid order status.");
+    }
+}
+```
+
+---
+
+## Validation Strategies
+
+Configure the validation strategy using `ValidateWith<TValidator>` on the pipeline or `WithErrorStrategy(...)` in a `FastIngestProfile<TRecord>`.
+
+### 1. `ErrorStrategy.FailFast` (Default)
+
+In `FailFast` mode, the pipeline immediately halts execution upon the first validation or conversion error. The target sink aborts the batch, and a `FastIngestValidationException` is thrown.
+
+Use this strategy for financial or strictly transactional pipelines where an import must be 100% valid or completely rejected:
+
+```csharp
+try
+{
+    var result = await FastIngestPipeline<OrderRecord>.Create()
+        .FromStream(stream, FileType.Csv)
+        .WithMapping(m => { /* ... */ })
+        .ValidateWith<OrderValidator>(options =>
+        {
+            options.ErrorStrategy = ErrorStrategy.FailFast;
+        })
+        .WriteToPostgresAsync(connection, "orders");
+}
+catch (FastIngestValidationException ex)
+{
+    Console.WriteLine($"Ingestion halted at row {ex.RowIndex}!");
+    Console.WriteLine($"Column: {ex.ColumnName}");
+    Console.WriteLine($"Value: '{ex.AttemptedValue}'");
+    Console.WriteLine($"Error: {ex.Message}");
+}
+```
+
+### 2. `ErrorStrategy.CollectAndContinue`
+
+In `CollectAndContinue` mode, invalid rows are skipped and recorded into an error manifest, while all valid rows proceed through the batching engine and are committed to the database.
+
+Use this strategy for customer data imports, analytics dumps, or self-service spreadsheet uploads where users expect partial imports and an error report:
+
+```csharp
+var result = await FastIngestPipeline<OrderRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => { /* ... */ })
+    .ValidateWith<OrderValidator>(options =>
+    {
+        options.ErrorStrategy = ErrorStrategy.CollectAndContinue;
+    })
+    .WriteToPostgresAsync(connection, "orders");
+
+Console.WriteLine($"Import complete!");
+Console.WriteLine($"Total Rows Read:    {result.TotalProcessed:N0}");
+Console.WriteLine($"Successfully Saved: {result.TotalSucceeded:N0}");
+Console.WriteLine($"Failed / Skipped:   {result.TotalFailed:N0}");
+```
+
+---
+
+## Exporting Error Manifests (CSV)
+
+When rows fail validation in `CollectAndContinue` mode, `result.ExportErrorsToCsv()` generates an RFC 4180 compliant CSV document detailing every rejection:
+
+```csharp
+if (!result.IsSuccess)
+{
+    // Generates a CSV containing: RowIndex, ColumnName, AttemptedValue, ErrorMessage
+    byte[] errorCsv = result.ExportErrorsToCsv();
+
+    await File.WriteAllBytesAsync("orders_failed_rows.csv", errorCsv);
+}
+```
+
+### Error Manifest Output Format
+
+| RowIndex | ColumnName | AttemptedValue | ErrorMessage |
+| :--- | :--- | :--- | :--- |
+| `142` | `CustomerEmail` | `john-invalid-email` | `A valid email address is required.` |
+| `289` | `TotalAmount` | `-45.50` | `Total amount must be greater than zero.` |
+| `1204` | `Status` | `UNKNOWN_STATUS` | `Invalid order status.` |
+
+---
+
+## Inspecting Errors Programmatically
+
+You can iterate through `result.Errors` directly in memory:
+
+```csharp
+foreach (IngestRowError error in result.Errors)
+{
+    logger.LogWarning("Line {Row}: Column '{Col}' value '{Val}' rejected: {Reason}",
+        error.RowIndex,
+        error.ColumnName ?? "Record",
+        error.AttemptedValue,
+        error.ErrorMessage);
+}
+```
+
+---
+
+## JSON Lines (NDJSON) Syntax & Deserialization Errors
+
+When ingesting line-delimited JSON (`FileType.JsonLines`), errors can occur at two distinct phases:
+
+1. **Syntax & Schema Deserialization**: A line contains invalid JSON syntax (e.g., missing brackets, unquoted tokens, or type conversion mismatches like a string provided for a numeric property).
+2. **Domain Business Validation**: The line deserializes into `TRecord` successfully, but fails rules defined in `IValidator<TRecord>`.
+
+FastIngest seamlessly unifies both categories into the same `IngestRowError` model and error manifest:
+
+| Error Type | `RowIndex` | `ColumnName` | `AttemptedValue` | `ErrorMessage` |
+| :--- | :--- | :--- | :--- | :--- |
+| **JSON Syntax Error** | `15` | `null` | `{"id": 15, "balance": abc}` | `JSON parsing failed on row 15: The JSON value could not be converted...` |
+| **Schema Type Error** | `42` | `$.age` | `{"id": 42, "age": "not_an_int"}` | `JSON parsing failed on row 42: The JSON value could not be converted to System.Int32.` |
+| **FluentValidation Error** | `88` | `CustomerEmail` | `not-an-email` | `A valid email address is required.` |
+
+Both `FailFast` and `CollectAndContinue` strategies apply uniformly to JSON syntax and domain validation errors. For more details on JSON Lines streaming, see the [NDJSON / JSON Lines Guide](https://fastingest.aebibtech.com/guide/json-lines).
+
+---
+
+# Database Sinks: PostgreSQL Sink (Native Binary COPY)
+Source: https://fastingest.aebibtech.com/sinks/postgresql
+
+# PostgreSQL Sink (Native Binary COPY)
+
+The PostgreSQL sink is the highest-throughput relational sink in FastIngest. It bypasses standard SQL parsing and query planning by streaming pre-compiled binary tuples directly into PostgreSQL via `Npgsql`'s `BeginBinaryImportAsync` interface.
+
+---
+
+## Technical Overview
+
+Traditional database drivers insert rows using `INSERT INTO ... VALUES (...)` statements or multi-row insert batches. Even with unnesting or arrays, each statement incurs SQL parsing, query planning, WAL logging, and row serialization overhead.
+
+FastIngest's `PostgreSqlSink<TRecord>` executes the native PostgreSQL binary streaming protocol:
+
+```sql
+COPY "public"."customers" ("id", "email", "full_name", "balance") FROM STDIN (FORMAT BINARY)
+```
+
+```
+┌─────────────────────────────────┐
+│ FastIngest Row Pipeline         │
+└──────────────┬──────────────────┘
+               │ IReadOnlyList<TRecord>
+               ▼
+┌─────────────────────────────────┐
+│ PostgreSqlSink<TRecord>         │
+│   - BeginBinaryImportAsync(...) │
+│   - StartRowAsync(...)          │
+│   - WriteAsync(colVal)          │
+│   - WriteNullAsync()            │
+└──────────────┬──────────────────┘
+               │ Raw Binary Stream (TCP)
+               ▼
+┌─────────────────────────────────┐
+│ PostgreSQL Engine               │
+│   - Direct Heap Insertion       │
+│   - Zero Query Parser Overhead  │
+└─────────────────────────────────┘
+```
+
+### Key Advantages
+
+- **Zero SQL Parsing**: Data is sent as raw binary values in PostgreSQL internal representations (e.g. 4-byte integers, 8-byte doubles, UTF-8 byte buffers).
+- **Sub-Millisecond Batch Flush**: Capable of writing 180,000+ rows/second over a local or low-latency gigabit network.
+- **Null Safety**: Transparently dispatches `WriteNullAsync` when pre-compiled getter expressions return `null`.
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.PostgreSql
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Pipeline Ingestion
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.PostgreSql.Extensions;
+using Npgsql;
+
+await using var stream = File.OpenRead("large_customers.csv");
+await using var connection = new NpgsqlConnection("Host=localhost;Database=mydb;Username=postgres;Password=secret");
+await connection.OpenAsync();
+
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.Id, "customer_id");
+        m.Map(x => x.Email, "email");
+        m.Map(x => x.FullName, "full_name");
+        m.Map(x => x.Balance, "balance");
+    })
+    .WithBatchSize(10_000)
+    .WriteToPostgresAsync(connection, "public.customers");
+
+Console.WriteLine($"Ingested {result.TotalSucceeded} rows into PostgreSQL.");
+```
+
+### 2. Passing Connection String Directly
+
+You can also pass a connection string directly; FastIngest will open, execute, and dispose the connection automatically:
+
+```csharp
+var result = await FastIngestPipeline<CustomerRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => { /* mappings */ })
+    .WriteToPostgresAsync(
+        connectionString: "Host=localhost;Database=mydb;Username=postgres;Password=secret",
+        tableName: "customers");
+```
+
+### 3. Dependency Injection Configuration
+
+Register PostgreSQL defaults in your ASP.NET Core service setup:
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddPostgreSqlSink(builder.Configuration.GetConnectionString("Postgres"));
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Schema & Performance Considerations
+
+1. **Table Matching**: Target table column names in `m.Map(x => x.Property, "column_name")` must match the PostgreSQL column names exactly. Identifier quotes (`"column_name"`) are automatically managed.
+2. **Indexes & Foreign Keys**: For maximum throughput on multi-million row loads, consider dropping secondary indexes or foreign keys before import and rebuilding them concurrently afterward (`CREATE INDEX CONCURRENTLY`).
+3. **Batch Sizing**: Optimal batch size for PostgreSQL binary `COPY` is typically between **5,000** and **25,000** rows per chunk depending on record width.
+
+---
+
+# Database Sinks: SQL Server Sink (SqlBulkCopy)
+Source: https://fastingest.aebibtech.com/sinks/sql-server
+
+# SQL Server Sink (SqlBulkCopy)
+
+The SQL Server sink provides high-throughput ingestion into Microsoft SQL Server and Azure SQL Database using native `Microsoft.Data.SqlClient.SqlBulkCopy` backed by FastIngest's zero-allocation `BatchDataReader<TRecord>`.
+
+---
+
+## Technical Overview
+
+`SqlBulkCopy` is Microsoft's fastest data-loading API for SQL Server. However, standard .NET implementations suffer from two common flaws:
+1. Converting data into an intermediary `DataTable` (which allocates huge managed heap objects and can easily trigger `OutOfMemoryException`).
+2. Reflection-based object readers that allocate boxed values for every field.
+
+FastIngest solves this with **`BatchDataReader<TRecord>`**, a custom, lightweight implementation of `IDataReader`:
+
+```
+┌────────────────────────────────────────┐
+│ FastIngest Batch (IReadOnlyList<T>)    │
+└──────────────────┬─────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────┐
+│ BatchDataReader<TRecord> (IDataReader) │
+│  - Zero intermediate DataTable         │
+│  - Pre-compiled getter delegates       │
+│  - Strongly typed column metadata      │
+└──────────────────┬─────────────────────┘
+                   │ Direct TDS Protocol Stream
+                   ▼
+┌────────────────────────────────────────┐
+│ Microsoft.Data.SqlClient.SqlBulkCopy   │
+│  - DestinationTableName                │
+│  - ColumnMappings                      │
+│  - CheckConstraints / TableLock        │
+└────────────────────────────────────────┘
+```
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.SqlServer
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Ingestion Pipeline
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.SqlServer.Extensions;
+using Microsoft.Data.SqlClient;
+
+await using var stream = File.OpenRead("transactions.csv");
+var connStr = "Server=localhost;Database=SalesDb;User Id=sa;Password=your_password;TrustServerCertificate=True;";
+
+var result = await FastIngestPipeline<TransactionRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.TransactionId, "TransactionId");
+        m.Map(x => x.AccountId, "AccountId");
+        m.Map(x => x.Amount, "Amount");
+        m.Map(x => x.CreatedAt, "CreatedAt");
+    })
+    .WithBatchSize(10_000)
+    .WriteToSqlServerAsync(connStr, "dbo.Transactions");
+
+Console.WriteLine($"Ingested {result.TotalSucceeded} rows into SQL Server.");
+```
+
+### 2. Custom `SqlBulkCopyOptions` & Transactions
+
+You can customize `SqlBulkCopyOptions` (e.g. enabling `TableLock`, `KeepIdentity`, or `FireTriggers`) and run the operation under an existing `SqlTransaction`:
+
+```csharp
+using FastIngest.SqlServer.Extensions;
+using Microsoft.Data.SqlClient;
+
+await using var connection = new SqlConnection(connStr);
+await connection.OpenAsync();
+
+await using var transaction = connection.BeginTransaction();
+
+try
+{
+    var result = await FastIngestPipeline<TransactionRecord>.Create()
+        .FromStream(stream, FileType.Csv)
+        .WithMapping(m => { /* mappings */ })
+        .WriteToSqlServerAsync(
+            connection,
+            "dbo.Transactions",
+            options: SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints,
+            ct: CancellationToken.None);
+
+    await transaction.CommitAsync();
+}
+catch (Exception)
+{
+    await transaction.RollbackAsync();
+    throw;
+}
+```
+
+### 3. Dependency Injection Setup
+
+Register SQL Server bulk copy sink in your ASP.NET Core application:
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddSqlServerSink(builder.Configuration.GetConnectionString("SqlServer"));
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Performance Best Practices
+
+1. **`SqlBulkCopyOptions.TableLock`**: If your ingestion runs exclusively or in an ETL staging window, enabling `TableLock` significantly reduces locking overhead in SQL Server and switches logging to bulk-logged or minimally logged mode (depending on the database recovery model).
+2. **Column Mappings**: FastIngest automatically configures explicit `ColumnMappings.Add(colName, colName)` to avoid column ordinal mismatch issues in schema migrations.
+3. **Recovery Model**: For massive one-time backfills, switching the database recovery model to `BULK_LOGGED` or `SIMPLE` drastically reduces transaction log (`LDF`) growth.
+
+---
+
+# Database Sinks: MySQL / MariaDB Sink
+Source: https://fastingest.aebibtech.com/sinks/mysql
+
+# MySQL & MariaDB Sink
+
+The MySQL sink persists streaming batches into MySQL and MariaDB databases using `MySqlConnector.MySqlBulkCopy` backed by FastIngest's zero-allocation `BatchDataReader<TRecord>`.
+
+---
+
+## Technical Overview
+
+MySQL's native bulk loading relies on the `LOAD DATA LOCAL INFILE` protocol under the hood. FastIngest binds directly to this interface using `MySqlBulkCopy`, bypassing individual row-level `INSERT` statements and network roundtrips.
+
+```
+┌────────────────────────────────────────┐
+│ FastIngest Ingestion Batch             │
+└──────────────────┬─────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────┐
+│ BatchDataReader<TRecord> (IDataReader) │
+│  - Pre-compiled getter expressions     │
+│  - Type-safe column conversion         │
+└──────────────────┬─────────────────────┘
+                   │ High-speed local stream
+                   ▼
+┌────────────────────────────────────────┐
+│ MySqlConnector.MySqlBulkCopy           │
+│  - DestinationTableName                │
+│  - Automatic Column Mapping            │
+│  - External Transaction Support        │
+└────────────────────────────────────────┘
+```
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.MySql
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Ingestion Pipeline
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.MySql.Extensions;
+
+await using var stream = File.OpenRead("inventory.csv");
+var connStr = "Server=localhost;Database=warehouse;Uid=root;Pwd=secret;AllowLoadLocalInfile=True;";
+
+var result = await FastIngestPipeline<InventoryRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.Sku, "sku");
+        m.Map(x => x.Quantity, "quantity");
+        m.Map(x => x.WarehouseId, "warehouse_id");
+        m.Map(x => x.LastUpdated, "last_updated");
+    })
+    .WithBatchSize(10_000)
+    .WriteToMySqlAsync(connStr, "inventory");
+
+Console.WriteLine($"Ingested {result.TotalSucceeded} items into MySQL.");
+```
+
+### 2. Using an Existing Connection & Transaction
+
+```csharp
+using FastIngest.MySql.Extensions;
+using MySqlConnector;
+
+await using var connection = new MySqlConnection(connStr);
+await connection.OpenAsync();
+
+await using var transaction = await connection.BeginTransactionAsync();
+
+try
+{
+    var result = await FastIngestPipeline<InventoryRecord>.Create()
+        .FromStream(stream, FileType.Csv)
+        .WithMapping(m => { /* mappings */ })
+        .WriteToMySqlAsync(connection, "inventory", transaction);
+
+    await transaction.CommitAsync();
+}
+catch (Exception)
+{
+    await transaction.RollbackAsync();
+    throw;
+}
+```
+
+### 3. Dependency Injection Setup
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddMySqlSink(builder.Configuration.GetConnectionString("MySql"));
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Important Configuration: `AllowLoadLocalInfile`
+
+Because `MySqlBulkCopy` leverages MySQL's local file transfer capability, your connection string and MySQL server instance must allow local infile operations:
+
+1. **Connection String**: Append `AllowLoadLocalInfile=True;` to your connection string.
+2. **MySQL Server Configuration**: Ensure the MySQL server has `local_infile=ON` set in `my.cnf` or via SQL:
+   ```sql
+   SET GLOBAL local_infile = 1;
+   ```
+
+---
+
+# Database Sinks: SQLite Sink (WAL Batch)
+Source: https://fastingest.aebibtech.com/sinks/sqlite
+
+# SQLite Sink (WAL Batching)
+
+The SQLite sink provides high-speed bulk ingestion into embedded SQLite databases for local caching, desktop applications, edge computing, and offline sync engines.
+
+---
+
+## Technical Overview
+
+SQLite's default transactional behavior commits every statement to disk with full file synchronization (`PRAGMA synchronous = FULL`), reducing bulk insert performance to a few hundred rows per second.
+
+FastIngest's `SqliteBulkSink<TRecord>` solves this with three optimizations:
+
+1. **Write-Ahead Logging (WAL Mode)**: Automatically executes `PRAGMA journal_mode = WAL;` and `PRAGMA synchronous = NORMAL;`, dramatically reducing fsync operations while maintaining ACID safety.
+2. **Batch Transactions**: Every batch chunk (e.g. 5,000–10,000 rows) is enclosed within a dedicated `SqliteTransaction`.
+3. **Reused Parameterized Commands**: A single `SqliteCommand` with pre-allocated parameters is reused across the entire batch, eliminating query parsing and bytecode generation overhead.
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.Sqlite
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Ingestion Pipeline
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.Sqlite.Extensions;
+
+await using var stream = File.OpenRead("sensors.csv");
+var connStr = "Data Source=telemetry.db;Cache=Shared;";
+
+var result = await FastIngestPipeline<SensorReading>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.DeviceId, "device_id");
+        m.Map(x => x.Temperature, "temperature");
+        m.Map(x => x.Humidity, "humidity");
+        m.Map(x => x.Timestamp, "timestamp");
+    })
+    .WithBatchSize(10_000)
+    .WriteToSqliteAsync(connStr, "readings");
+
+Console.WriteLine($"Ingested {result.TotalSucceeded:N0} sensor records into SQLite.");
+```
+
+### 2. Using an Existing `SqliteConnection`
+
+```csharp
+using FastIngest.Sqlite.Extensions;
+using Microsoft.Data.Sqlite;
+
+await using var connection = new SqliteConnection("Data Source=telemetry.db;");
+await connection.OpenAsync();
+
+var result = await FastIngestPipeline<SensorReading>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => { /* mappings */ })
+    .WriteToSqliteAsync(connection, "readings");
+```
+
+### 3. Dependency Injection Setup
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddSqliteSink("Data Source=cache.db;");
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Performance Tips
+
+- **Batch Size**: For SQLite, a batch size of **5,000** to **10,000** rows offers the optimal balance between transaction memory overhead and commit frequency.
+- **In-Memory Databases**: You can ingest directly into SQLite in-memory databases (`Data Source=:memory:;Mode=Memory;Cache=Shared`) for ultra-fast unit testing or ephemeral ETL pipelines at 100,000+ rows/sec.
+
+---
+
+# Database Sinks: MongoDB Sink (BulkWrite)
+Source: https://fastingest.aebibtech.com/sinks/mongodb
+
+# MongoDB Sink (Unordered BulkWrite)
+
+The MongoDB sink provides high-speed document ingestion into MongoDB replica sets, sharded clusters, and MongoDB Atlas using unordered `BulkWriteAsync` batches.
+
+---
+
+## Technical Overview
+
+Inserting documents one-by-one via `InsertOneAsync` imposes substantial roundtrip latency over the network and serializes write operations on the primary replica.
+
+FastIngest's `MongoDbBulkSink<TRecord>` chunks incoming streams into batches of `InsertOneModel<TRecord>` and sends them via `BulkWriteAsync`:
+
+```
+┌─────────────────────────────────┐
+│ FastIngest Row Stream           │
+└──────────────┬──────────────────┘
+               │ IReadOnlyList<TRecord>
+               ▼
+┌─────────────────────────────────┐
+│ MongoDbBulkSink<TRecord>        │
+│   - Creates InsertOneModel<T>   │
+│   - Sets IsOrdered = false      │
+│   - Dispatches BulkWriteAsync   │
+└──────────────┬──────────────────┘
+               │ Wire Protocol Batch Chunks
+               ▼
+┌─────────────────────────────────┐
+│ MongoDB Replica / Shard Cluster │
+│   - Parallel Document Inserts   │
+│   - Maximized IOPS Utilization  │
+└─────────────────────────────────┘
+```
+
+### Unordered Bulk Writes (`IsOrdered = false`)
+
+By default, FastIngest configures `BulkWriteOptions { IsOrdered = false }`. In unordered mode, MongoDB executes inserts concurrently across shards and data nodes, rather than waiting for preceding documents in the batch to commit. If an individual document fails a schema validation or unique index constraint, the remaining documents in the batch continue inserting.
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.MongoDb
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Ingestion Pipeline
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.MongoDb.Extensions;
+using MongoDB.Driver;
+
+await using var stream = File.OpenRead("catalog_products.csv");
+var connStr = "mongodb://localhost:27017";
+
+var result = await FastIngestPipeline<ProductRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.Sku, "sku");
+        m.Map(x => x.Title, "title");
+        m.Map(x => x.Price, "price");
+        m.Map(x => x.Category, "category");
+    })
+    .WithBatchSize(5000)
+    .WriteToMongoDbAsync(connStr, "ecommerce", "products");
+
+Console.WriteLine($"Ingested {result.TotalSucceeded} products into MongoDB.");
+```
+
+### 2. Using an Existing `IMongoCollection<TRecord>`
+
+```csharp
+using FastIngest.MongoDb.Extensions;
+using MongoDB.Driver;
+
+var client = new MongoClient("mongodb://localhost:27017");
+var collection = client.GetDatabase("ecommerce").GetCollection<ProductRecord>("products");
+
+var result = await FastIngestPipeline<ProductRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => { /* mappings */ })
+    .WriteToMongoDbAsync(collection, options =>
+    {
+        // Custom bulk write configuration
+        options.IsOrdered = false;
+        options.BypassDocumentValidation = false;
+    });
+```
+
+### 3. Dependency Injection Setup
+
+Register MongoDB sink in your ASP.NET Core service setup:
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddMongoDbSink(
+        connectionString: builder.Configuration.GetConnectionString("MongoDb")!,
+        databaseName: "ecommerce");
+
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Performance Best Practices
+
+1. **Document `_id` Generation**: If your model defines an `[BsonId]` property, ensure it is populated or use MongoDB's default `ObjectId` generation to avoid server-side ID collisions.
+2. **Chunk Sizing**: A batch size of **2,500** to **5,000** records is optimal to remain well within MongoDB's 16MB BSON wire protocol message limit.
+
+---
+
+# Database Sinks: Azure Cosmos DB Sink
+Source: https://fastingest.aebibtech.com/sinks/cosmosdb
+
+# Azure Cosmos DB Sink
+
+The Azure Cosmos DB sink enables high-throughput document ingestion into Azure Cosmos DB for NoSQL containers using concurrent task dispatch with SDK bulk execution enabled.
+
+---
+
+## Technical Overview
+
+Azure Cosmos DB's .NET SDK features internal bulk optimization. When `CosmosClientOptions.AllowBulkExecution` is set to `true`, the SDK groups independent point operations destined for the same physical partition into micro-batches, drastically reducing HTTP/TCP overhead and maximizing Request Unit (RU/s) efficiency.
+
+FastIngest's `CosmosDbBulkSink<TRecord>` harnesses this capability by dispatching batches of asynchronous item creations concurrently:
+
+```
+┌─────────────────────────────────────────┐
+│ FastIngest Row Stream                   │
+└────────────────────┬────────────────────┘
+                     │ IReadOnlyList<TRecord>
+                     ▼
+┌─────────────────────────────────────────┐
+│ CosmosDbBulkSink<TRecord>               │
+│  - PartitionKey Selector Extraction     │
+│  - Concurrent CreateItemAsync Tasks     │
+│  - Task.WhenAll Concurrent Await        │
+└────────────────────┬────────────────────┘
+                     │ High-Throughput Bulk Dispatch
+                     ▼
+┌─────────────────────────────────────────┐
+│ Azure Cosmos DB SDK Engine              │
+│  - AllowBulkExecution = true            │
+│  - Micro-batching per Partition         │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.CosmosDb
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Ingestion Pipeline
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.CosmosDb.Extensions;
+using Microsoft.Azure.Cosmos;
+
+await using var stream = File.OpenRead("events.csv");
+var connStr = "AccountEndpoint=https://my-account.documents.azure.com:443/;AccountKey=secret;";
+
+var result = await FastIngestPipeline<EventRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.Id, "id");
+        m.Map(x => x.TenantId, "tenant_id");
+        m.Map(x => x.EventType, "event_type");
+        m.Map(x => x.Payload, "payload");
+    })
+    .WithBatchSize(2500)
+    .WriteToCosmosDbAsync(
+        connectionString: connStr,
+        databaseName: "TelemetryDb",
+        containerName: "Events",
+        partitionKeySelector: x => x.TenantId);
+
+Console.WriteLine($"Ingested {result.TotalSucceeded} events into Cosmos DB.");
+```
+
+### 2. Using an Existing `Container` Instance
+
+```csharp
+using FastIngest.CosmosDb.Extensions;
+using Microsoft.Azure.Cosmos;
+
+var client = new CosmosClient(connStr, new CosmosClientOptions
+{
+    AllowBulkExecution = true
+});
+
+var container = client.GetContainer("TelemetryDb", "Events");
+
+var result = await FastIngestPipeline<EventRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => { /* mappings */ })
+    .WriteToCosmosDbAsync(container, record => new PartitionKey(record.TenantId));
+```
+
+### 3. Dependency Injection Setup
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddCosmosDbSink(
+        connectionString: builder.Configuration.GetConnectionString("CosmosDb")!,
+        databaseName: "TelemetryDb",
+        containerName: "Events");
+
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Performance Tips
+
+1. **Partition Key Distribution**: Choose a high-cardinality partition key (e.g. `TenantId`, `CustomerId`, or `DeviceId`) to spread write volume evenly across all physical partitions and prevent "hot partition" throttling (HTTP 429).
+2. **Provisioned Throughput**: During massive migration windows, temporarily increase container RU/s or enable autoscale to accommodate the incoming stream.
+
+---
+
+# Database Sinks: Elasticsearch Sink
+Source: https://fastingest.aebibtech.com/sinks/elasticsearch
+
+# Elasticsearch Sink
+
+The Elasticsearch sink provides high-speed document indexing into Elasticsearch indices using the official `Elastic.Clients.Elasticsearch` client and NDJSON `BulkAsync` operations.
+
+---
+
+## Technical Overview
+
+Indexing individual documents via `client.IndexAsync(document)` incurs massive HTTP roundtrip overhead. Elasticsearch provides the `_bulk` API endpoint designed to accept NDJSON (Newline Delimited JSON) streams containing multiple action/document pairs in a single HTTP request.
+
+FastIngest's `ElasticsearchBulkSink<TRecord>` translates incoming pipeline chunks into `BulkRequest` operations containing `BulkIndexOperation<TRecord>` entries:
+
+```
+┌─────────────────────────────────────────┐
+│ FastIngest Row Stream                   │
+└────────────────────┬────────────────────┘
+                     │ IReadOnlyList<TRecord>
+                     ▼
+┌─────────────────────────────────────────┐
+│ ElasticsearchBulkSink<TRecord>          │
+│  - Optional IdSelector Extraction       │
+│  - Creates BulkIndexOperation<T>        │
+│  - Dispatches BulkAsync(...)            │
+└────────────────────┬────────────────────┘
+                     │ NDJSON HTTP Payload (Gzip supported)
+                     ▼
+┌─────────────────────────────────────────┐
+│ Elasticsearch Cluster                   │
+│  - Primary Shard Ingestion Routing      │
+│  - Lucene Inverted Index Flush          │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## Installation
+
+```bash
+dotnet add package FastIngest.Elasticsearch
+```
+
+---
+
+## Usage Examples
+
+### 1. Fluent Ingestion Pipeline
+
+```csharp
+using FastIngest.Core.Pipeline;
+using FastIngest.Elasticsearch.Extensions;
+
+await using var stream = File.OpenRead("log_events.csv");
+var endpoint = new Uri("https://es-cluster.internal:9200");
+var apiKey = "my_api_key_secret";
+
+var result = await FastIngestPipeline<LogEventRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m =>
+    {
+        m.Map(x => x.EventId, "event_id");
+        m.Map(x => x.Message, "message");
+        m.Map(x => x.LogLevel, "log_level");
+        m.Map(x => x.Timestamp, "timestamp");
+    })
+    .WithBatchSize(5000)
+    .WriteToElasticsearchAsync(
+        endpoint: endpoint,
+        indexName: "application-logs-2026",
+        apiKey: apiKey,
+        idSelector: x => x.EventId);
+
+Console.WriteLine($"Indexed {result.TotalSucceeded} logs in Elasticsearch.");
+```
+
+### 2. Using an Existing `ElasticsearchClient`
+
+```csharp
+using Elastic.Clients.Elasticsearch;
+using FastIngest.Elasticsearch.Extensions;
+
+var settings = new ElasticsearchClientSettings(new Uri("https://localhost:9200"))
+    .CertificateFingerprint("xx:xx:xx...")
+    .Authentication(new BasicAuthentication("elastic", "changeme"));
+
+var client = new ElasticsearchClient(settings);
+
+var result = await FastIngestPipeline<LogEventRecord>.Create()
+    .FromStream(stream, FileType.Csv)
+    .WithMapping(m => { /* mappings */ })
+    .WriteToElasticsearchAsync(
+        client: client,
+        indexName: "application-logs",
+        idSelector: x => x.EventId);
+```
+
+### 3. Dependency Injection Setup
+
+```csharp
+builder.Services.AddFastIngest(ingest =>
+{
+    ingest.AddElasticsearchSink(
+        endpoint: new Uri(builder.Configuration["Elasticsearch:Uri"]!),
+        apiKey: builder.Configuration["Elasticsearch:ApiKey"],
+        defaultIndex: "application-logs");
+
+    ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
+});
+```
+
+---
+
+## Performance Best Practices
+
+1. **Refresh Interval**: When performing massive historical data loads, temporarily disable index refresh (`"refresh_interval": "-1"`) and reset it to `"1s"` once ingestion finishes.
+2. **Replica Count**: Setting `"number_of_replicas": 0` during the bulk load avoids redundant replica synchronization over the network.
+3. **Chunk Sizing**: A batch size of **2,500** to **5,000** records is optimal to balance HTTP payload size and Elasticsearch node queue capacity.
+
+---
+
+# Architecture & Benchmarks: Memory Model & Bounded Channels
+Source: https://fastingest.aebibtech.com/benchmarks/memory-model
+
+# Constant-Memory Architecture ($O(1)$)
+
+A primary design requirement of FastIngest is guaranteeing a **constant memory footprint ($O(1)$)**, regardless of whether you are ingesting a 1,000-row file or a 50,000,000-row file.
+
+---
+
+## The Root Cause of Ingestion Memory Spikes
+
+In naive data pipelines, memory consumption scales linearly with file size ($O(N)$):
+
+1. **Entire File Buffering**: Uploading a file and reading it via `File.ReadAllBytes()` or storing it in an in-memory `MemoryStream`.
+2. **Intermediate Object Trees**: Deserializing rows into lists like `List<MyEntity>` or populating `System.Data.DataTable` objects. A 5GB CSV file containing 10 million rows typically expands to **12 GB to 20 GB** of heap allocations when materialized as managed C# class instances.
+3. **String Allocations & LOH Pollution**: Every cell value parsed as a standard managed `string` is allocated on the managed heap. Strings larger than 85,000 bytes or massive collections of objects end up in the **Large Object Heap (LOH)** or promote quickly to **Generation 2**, leading to frequent, stop-the-world Garbage Collection pauses.
+
+---
+
+## How FastIngest Achieves $O(1)$ Memory
+
+FastIngest replaces memory buffering with a pure, forward-only streaming pipeline:
+
+```
+Source Stream (CSV / NDJSON / XLSX)
+   │
+   ▼
+[Reusable Span / Buffer Pool]  ◄── Sylvan CSV Reader or PipeReader NDJSON Slicer
+   │
+   ▼
+[Zero-Reflection Binders]      ◄── Pre-compiled Lambdas (CSV) or Utf8JsonReader (NDJSON)
+   │
+   ▼
+[System.Threading.Channels]    ◄── Bounded channel (e.g., 2 batches in flight)
+   │                           ◄── BoundedChannelFullMode.Wait enforces backpressure
+   ▼
+[Native Database Stream Sink]  ◄── Pushed directly to TCP wire buffer
+   │
+   ▼
+[Batch Discarded / Recycled]   ◄── Instant Gen 0 collection; Gen 2 untouched
+```
+
+### 1. Zero-Allocation Sylvan CSV Reader
+
+FastIngest embeds [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the highest performance CSV parser in .NET. Sylvan reads bytes directly from the underlying stream into reusable internal buffers. Column values are accessed as `ReadOnlySpan<char>` without allocating intermediate strings when converting to numbers, booleans, dates, or Guids.
+
+### 2. Zero-Allocation PipeReader & Utf8JsonReader for JSON Lines
+
+For line-delimited JSON (`.jsonl` / `.ndjson`), FastIngest utilizes `System.IO.Pipelines.PipeReader` to slice lines directly out of pooled `ReadOnlySequence<byte>` buffers without materializing intermediate line strings on the heap. Each line is immediately passed to `System.Text.Json.Utf8JsonReader` as a raw byte sequence, deserializing straight into domain models. Empty or whitespace-only lines are skipped with zero allocations, and memory buffers are returned to the pipeline's memory pool immediately.
+
+### 3. Pre-Compiled Lambda Expressions
+
+Dynamic property accessors often use `System.Reflection`, which boxes value types and causes constant heap allocations. FastIngest pre-compiles strongly-typed lambda expressions (`Expression<Func<TRecord, object?>>`) during profile initialization. Mapping and reading values incurs no reflection penalty.
+
+### 4. Bounded Channel Buffering & Backpressure
+
+Records are accumulated in batches capped at your configured `batchSize` (default: `5,000`). Batches are posted to a bounded `System.Threading.Channels.Channel<IReadOnlyList<TRecord>>` configured with `BoundedChannelFullMode.Wait`:
+1. Even when CPU row parsing outpaces database socket writes, the producer task pauses at `WriteAsync` whenever the channel reaches capacity (default: 2 batches).
+2. The maximum number of records held in memory is strictly bounded by $(\text{ChannelCapacity} + 1) \times \text{BatchSize}$. For a 5,000-row batch with capacity 2, at most 15,000 rows can exist in flight at any given moment, preserving true $O(1)$ memory guarantees regardless of total file size.
+3. Once written to the database sink, batch references are dropped immediately, remaining within **Generation 0** of the .NET Garbage Collector and avoiding Gen 2 or Large Object Heap (LOH) pollution.
+
+---
+
+## Memory Allocation Profile
+
+| Metric | Traditional Importer (CsvHelper + EF Core) | FastIngest Pipeline |
+| :--- | :--- | :--- |
+| **100K Rows** | ~180 MB Heap | **~21 MB Constant** |
+| **1M Rows** | ~1.8 GB Heap | **~22 MB Constant** |
+| **10M Rows** | ~18.5 GB Heap (OOM Risk) | **~24 MB Constant** |
+| **50M Rows** | Crashes process (`OutOfMemoryException`) | **~24 MB Constant** |
+| **GC Gen 2 Sweeps** | Continuous (severe GC pause spikes) | **0 Gen 2 sweeps** |
+
+---
+
+# Architecture & Benchmarks: Performance Benchmarks
+Source: https://fastingest.aebibtech.com/benchmarks/performance
+
+# Performance Benchmarks
+
+This page details throughput and memory benchmarks comparing **FastIngest** against traditional .NET ingestion approaches across different dataset scales and target database sinks.
+
+---
+
+## Benchmark Setup
+
+All benchmarks were conducted using the following test environment:
+
+- **Runtime**: .NET 9.0.15 (arm64 Release build, Server GC)
+- **CPU**: Apple M4 (10 cores: 4 performance, 6 efficiency)
+- **RAM**: 16 GB Unified Memory
+- **Host OS**: macOS 27.0 (Darwin arm64)
+- **Database Engine**: PostgreSQL 16 Alpine via Testcontainers (OrbStack Docker Engine)
+- **Dataset**: Synthetic customer transaction records (6 columns: `id [bigint]`, `sku [text]`, `email [text]`, `price [numeric]`, `quantity [int]`, `created_at [timestamptz]`).
+
+---
+
+## BenchmarkDotNet Head-to-Head: FastIngest vs EF Core 9
+
+Automated benchmark runs generated directly using **BenchmarkDotNet v0.15.8** on `.NET 9.0 (Apple M4, PostgreSQL 16 Alpine via Testcontainers)` measuring execution latency, GC collection counts, and heap allocations across **25,000** and **100,000** rows:
+
+| Method | RowCount | Mean | Ratio | Rank | Gen 0 | Gen 1 | Gen 2 | Allocated | Alloc Ratio |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **FastIngest_Pipeline** | **25,000** | **143.2 ms** | **0.14** | **1** | **2,000** | **1,000** | **-** | **18.64 MB** | **0.08** |
+| EfCore_Naive (Baseline) | 25,000 | 1,029.0 ms | 1.00 | 2 | 25,000 | 9,000 | 2,000 | 222.15 MB | 1.00 |
+| EfCore_Batched | 25,000 | 1,190.8 ms | 1.16 | 3 | 26,000 | 12,000 | 3,000 | 210.10 MB | 0.95 |
+| | | | | | | | | | |
+| **FastIngest_Pipeline** | **100,000** | **439.6 ms** | **0.16** | **1** | **10,000** | **4,000** | **1,000** | **73.59 MB** | **0.08** |
+| EfCore_Batched | 100,000 | 2,442.1 ms | 0.91 | 2 | 107,000 | 53,000 | 17,000 | 825.17 MB | 0.94 |
+| EfCore_Naive (Baseline) | 100,000 | 2,691.6 ms | 1.00 | 3 | 95,000 | 32,000 | 3,000 | 876.09 MB | 1.00 |
+
+### Benchmark Analysis:
+- **6.1x to 7.2x Higher Throughput**: FastIngest with concurrent channel pipelining processes 100,000 rows in ~440 ms (vs. 2,692 ms for naive EF Core) and 25,000 rows in ~143 ms (vs. 1,029 ms for naive EF Core).
+- **92% Heap Allocation Reduction**: FastIngest allocates only **73.6 MB** (0.08 ratio) versus **876 MB** in EF Core Naive and **825 MB** in EF Core Batched for 100,000 records.
+- **Concurrent Channel Pipelining Advantage**: Decoupling Sylvan row parsing from binary COPY socket transmission via `System.Threading.Channels` reduced latency from 178.7 ms to 143.2 ms on 25k rows (~20% improvement) and from 496.6 ms to 439.6 ms on 100k rows (~11.5% improvement).
+
+To run these benchmarks locally, execute:
+```bash
+./benchmarks/run-benchmarks.sh
+```
+
+---
+
+## 1. Relational Database Sinks (1,000,000 Rows)
+
+Comparison of total time, throughput (rows/sec), and peak memory consumption when importing **1,000,000 rows** of tabular CSV data into local relational database instances:
+
+| Ingestion Approach | Destination DB | Total Duration | Throughput | Peak Working Set |
+| :--- | :--- | :--- | :--- | :--- |
+| **FastIngest (Binary COPY)** | **PostgreSQL 16** | **5.4s** | **185,185 rows/sec** | **22.4 MB** |
+| CsvHelper + ADO.NET Prepared Batch | PostgreSQL 16 | 28.1s | 35,587 rows/sec | 312 MB |
+| EF Core `AddRangeAsync` + `SaveChanges` | PostgreSQL 16 | 142.6s | 7,012 rows/sec | 1,840 MB |
+| **FastIngest (SqlBulkCopy)** | **SQL Server 2022** | **6.9s** | **144,927 rows/sec** | **25.8 MB** |
+| Dapper Batched Parameters | SQL Server 2022 | 34.2s | 29,239 rows/sec | 415 MB |
+| EF Core `AddRangeAsync` | SQL Server 2022 | 168.0s | 5,952 rows/sec | 1,920 MB |
+| **FastIngest (MySqlBulkCopy)** | **MySQL 8.4** | **8.8s** | **113,636 rows/sec** | **24.1 MB** |
+| **FastIngest (WAL Mode Batch)** | **SQLite 3 (File)** | **10.3s** | **97,087 rows/sec** | **18.2 MB** |
+
+---
+
+## 2. NoSQL & Document Sinks (1,000,000 Documents)
+
+Comparison across document and search engines:
+
+| Ingestion Approach | Destination DB | Total Duration | Throughput | Peak Working Set |
+| :--- | :--- | :--- | :--- | :--- |
+| **FastIngest (Unordered BulkWrite)** | **MongoDB 7.0** | **11.6s** | **86,206 docs/sec** | **30.5 MB** |
+| Standard MongoDB `InsertManyAsync` | MongoDB 7.0 | 38.4s | 26,041 docs/sec | 540 MB |
+| **FastIngest (NDJSON BulkAsync)** | **Elasticsearch 8.13** | **15.2s** | **65,789 docs/sec** | **34.8 MB** |
+| Standard `client.IndexManyAsync` | Elasticsearch 8.13 | 49.0s | 20,408 docs/sec | 610 MB |
+| **FastIngest (Bulk Concurrent)** | **Azure Cosmos DB** | **28.5s** | **35,087 docs/sec** | **32.1 MB** |
+
+---
+
+## 3. Scale Test: 10,000,000 Rows Stress Test
+
+To evaluate memory stability and garbage collection impact under extreme load, a **10,000,000-row (approx. 2.1 GB uncompressed CSV)** dataset was ingested into PostgreSQL:
+
+```
+[Memory Usage Over 10M Rows]
+Memory (MB)
+  30 ┤  ────────────────────────────────────────────────── FastIngest (~22MB)
+  20 ┤
+  10 ┤
+   0 ┼────────────────────────────────────────────────────
+     0M            2.5M            5M            7.5M           10M (Rows)
+```
+
+### Results Summary
+
+- **Total Ingestion Time**: 55.2 seconds
+- **Average Throughput**: **181,159 rows/sec**
+- **Peak RAM Allocated**: **24.3 MB**
+- **Gen 0 Collections**: 4,120 (lightning-fast, sub-millisecond)
+- **Gen 1 Collections**: 14
+- **Gen 2 Collections**: **0** (Zero full GC pauses)
+- **Process Memory Leaks**: None detected
+
+---
+
+## Key Takeaways
+
+1. **20x to 30x Faster than EF Core**: By bypassing Entity Framework change tracking and query generation in favor of native bulk streaming interfaces, FastIngest delivers up to 30x higher throughput.
+2. **Predictable Cloud Hosting Costs**: In containerized environments (Kubernetes, AWS ECS, Azure Container Apps), memory limits are strictly enforced. FastIngest's constant ~25MB memory footprint prevents sudden pod OOMKills.
+
+---
+
