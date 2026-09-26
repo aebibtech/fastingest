@@ -1,0 +1,3 @@
+# Cloudflare Pages Redirects
+# Syntax: /source /destination 301
+# Add URL redirects here if documentation routes change in the future.

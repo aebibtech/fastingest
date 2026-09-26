@@ -1,17 +1,27 @@
 import { defineConfig } from 'vitepress'
 
+// Target platform detection:
+// - Cloudflare Pages sets CF_PAGES=1 during build, or DOCS_ENV can be set to 'cloudflare'.
+// - GitHub Pages uses GITHUB_PAGES=true, DOCS_ENV='github', or GITHUB_ACTIONS (when not targeting Cloudflare).
+// - Local dev / preview defaults to root base ('/').
+const isCloudflare = Boolean(process.env.CF_PAGES) || process.env.DOCS_ENV === 'cloudflare'
+const isGitHubPages = !isCloudflare && (Boolean(process.env.GITHUB_PAGES) || process.env.DOCS_ENV === 'github' || Boolean(process.env.GITHUB_ACTIONS))
+
+const base = process.env.DOCS_BASE || (isGitHubPages ? '/fastingest/' : '/')
+const hostname = process.env.DOCS_HOSTNAME || (isGitHubPages ? 'https://aebibtech.github.io/fastingest/' : 'https://fastingest.pages.dev')
+
 export default defineConfig({
   title: 'FastIngest',
   description: 'High-throughput, constant-memory bulk ingestion pipeline for .NET',
-  base: process.env.GITHUB_ACTIONS ? '/fastingest/' : '/',
+  base,
   cleanUrls: true,
   lastUpdated: true,
   sitemap: {
-    hostname: 'https://aebibtech.github.io/fastingest'
+    hostname
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base.replace(/\/$/, '')}/logo.svg` }],
     ['meta', { name: 'theme-color', content: '#3eaf7c' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'en' }],
