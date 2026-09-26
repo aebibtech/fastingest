@@ -7,12 +7,12 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <!-- Package Metadata -->
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
     <Authors>Paul Abib Camano</Authors>
     <Company>Aebibtech</Company>
     <Description>High-performance streaming bulk data ingestion engine and sinks for .NET.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://aebibtech.github.io/fastingest</PackageProjectUrl>
+    <PackageProjectUrl>https://fastingest.aebibtech.com</PackageProjectUrl>
     <RepositoryUrl>https://github.com/aebibtech/fastingest</RepositoryUrl>
     <PackageTags>bulk-insert;bulk-copy;streaming;high-performance;ingest;dotnet;csharp;postgres;sqlserver;mysql;sqlite;mongodb;cosmosdb;elasticsearch</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

@@ -8,7 +8,7 @@ const isCloudflare = Boolean(process.env.CF_PAGES) || process.env.DOCS_ENV === '
 const isGitHubPages = !isCloudflare && (Boolean(process.env.GITHUB_PAGES) || process.env.DOCS_ENV === 'github' || Boolean(process.env.GITHUB_ACTIONS))
 
 const base = process.env.DOCS_BASE || (isGitHubPages ? '/fastingest/' : '/')
-const hostname = process.env.DOCS_HOSTNAME || (isGitHubPages ? 'https://aebibtech.github.io/fastingest/' : 'https://fastingest.pages.dev')
+const hostname = process.env.DOCS_HOSTNAME || (isGitHubPages ? 'https://aebibtech.github.io/fastingest' : 'https://fastingest.aebibtech.com')
 
 export default defineConfig({
   title: 'FastIngest',
