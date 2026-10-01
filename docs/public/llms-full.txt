@@ -41,7 +41,7 @@ Source: https://fastingest.aebibtech.com/guide/introduction
 
 Processing large data imports in .NET frequently runs into three major bottlenecks:
 
-1. **Memory Bloat ($O(N)$ Growth)**: Traditional libraries (like CsvHelper or standard JSON deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
+1. **Memory Bloat (O(N) Growth)**: Traditional libraries (like CsvHelper or standard JSON deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
 2. **Slow Row-by-Row Database Inserts**: Using Entity Framework Core or standard ADO.NET `INSERT INTO` statements generates individual round-trips over the network. Even with basic transaction batching, throughput is usually capped at 2,000–5,000 rows/second.
 3. **Reflection Overhead**: Dynamically mapping string columns to record properties at runtime using standard reflection consumes CPU cycles and generates temporary object allocations on every single cell.
 
@@ -85,7 +85,7 @@ Stream (CSV / XLSX / JSONL / NDJSON)
    - **CSV**: Built on [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the fastest CSV reader in the .NET ecosystem, reading records as raw spans and UTF-8 bytes with minimal heap allocation.
    - **JSON Lines (NDJSON)**: Built on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader` to slice lines and deserialize records directly from raw byte sequences without intermediate string allocations.
 2. **Pre-Compiled Expression Trees & High-Speed Deserialization**: Column mappings are compiled into high-performance delegate expressions once and cached for the lifetime of your application. For JSON Lines, `Utf8JsonReader` deserializes records directly into target types with optional case-insensitivity.
-3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity ($O(1)$ memory).
+3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity (O(1) memory).
 4. **Native Bulk Transport Protocols**: FastIngest avoids generic SQL queries and binds directly to native database streaming interfaces:
    - PostgreSQL: Native binary `COPY ... FROM STDIN (FORMAT BINARY)`
    - SQL Server: `SqlBulkCopy` backed by a custom `BatchDataReader<TRecord>`
@@ -314,7 +314,7 @@ Source: https://fastingest.aebibtech.com/guide/json-lines
 
 FastIngest provides native, high-performance streaming ingestion for line-delimited JSON (**JSON Lines**, also known as **NDJSON** or `.jsonl` / `.ndjson`).
 
-Unlike traditional JSON deserializers that require loading an entire JSON array into memory ($O(N)$ RAM usage), FastIngest uses a constant-memory ($O(1)$) streaming reader based on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader`. Each line is sliced and deserialized directly from the underlying stream as raw byte spans, validated, and pushed into the concurrent bounded channel pipeline.
+Unlike traditional JSON deserializers that require loading an entire JSON array into memory (O(N) RAM usage), FastIngest uses a constant-memory (O(1)) streaming reader based on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader`. Each line is sliced and deserialized directly from the underlying stream as raw byte spans, validated, and pushed into the concurrent bounded channel pipeline.
 
 ---
 
@@ -1744,15 +1744,15 @@ builder.Services.AddFastIngest(ingest =>
 # Architecture & Benchmarks: Memory Model & Bounded Channels
 Source: https://fastingest.aebibtech.com/benchmarks/memory-model
 
-# Constant-Memory Architecture ($O(1)$)
+# Constant-Memory Architecture (O(1))
 
-A primary design requirement of FastIngest is guaranteeing a **constant memory footprint ($O(1)$)**, regardless of whether you are ingesting a 1,000-row file or a 50,000,000-row file.
+A primary design requirement of FastIngest is guaranteeing a **constant memory footprint (O(1))**, regardless of whether you are ingesting a 1,000-row file or a 50,000,000-row file.
 
 ---
 
 ## The Root Cause of Ingestion Memory Spikes
 
-In naive data pipelines, memory consumption scales linearly with file size ($O(N)$):
+In naive data pipelines, memory consumption scales linearly with file size (O(N)):
 
 1. **Entire File Buffering**: Uploading a file and reading it via `File.ReadAllBytes()` or storing it in an in-memory `MemoryStream`.
 2. **Intermediate Object Trees**: Deserializing rows into lists like `List<MyEntity>` or populating `System.Data.DataTable` objects. A 5GB CSV file containing 10 million rows typically expands to **12 GB to 20 GB** of heap allocations when materialized as managed C# class instances.
@@ -1760,7 +1760,7 @@ In naive data pipelines, memory consumption scales linearly with file size ($O(N
 
 ---
 
-## How FastIngest Achieves $O(1)$ Memory
+## How FastIngest Achieves O(1) Memory
 
 FastIngest replaces memory buffering with a pure, forward-only streaming pipeline:
 
@@ -1799,7 +1799,7 @@ Dynamic property accessors often use `System.Reflection`, which boxes value type
 
 Records are accumulated in batches capped at your configured `batchSize` (default: `5,000`). Batches are posted to a bounded `System.Threading.Channels.Channel<IReadOnlyList<TRecord>>` configured with `BoundedChannelFullMode.Wait`:
 1. Even when CPU row parsing outpaces database socket writes, the producer task pauses at `WriteAsync` whenever the channel reaches capacity (default: 2 batches).
-2. The maximum number of records held in memory is strictly bounded by $(\text{ChannelCapacity} + 1) \times \text{BatchSize}$. For a 5,000-row batch with capacity 2, at most 15,000 rows can exist in flight at any given moment, preserving true $O(1)$ memory guarantees regardless of total file size.
+2. The maximum number of records held in memory is strictly bounded by $(\text{ChannelCapacity} + 1) \times \text{BatchSize}$. For a 5,000-row batch with capacity 2, at most 15,000 rows can exist in flight at any given moment, preserving true O(1) memory guarantees regardless of total file size.
 3. Once written to the database sink, batch references are dropped immediately, remaining within **Generation 0** of the .NET Garbage Collector and avoiding Gen 2 or Large Object Heap (LOH) pollution.
 
 ---

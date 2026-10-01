@@ -8,7 +8,7 @@
 
 Processing large data imports in .NET frequently runs into three major bottlenecks:
 
-1. **Memory Bloat ($O(N)$ Growth)**: Traditional libraries (like CsvHelper or standard JSON deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
+1. **Memory Bloat (O(N) Growth)**: Traditional libraries (like CsvHelper or standard JSON deserializers) often materialize row collections into memory before saving. For a 5GB file containing 15 million rows, materializing domain models or DataTables can consume 12–20 GB of RAM, causing `OutOfMemoryException` or crippling GC pauses (Gen 2 collection freezes).
 2. **Slow Row-by-Row Database Inserts**: Using Entity Framework Core or standard ADO.NET `INSERT INTO` statements generates individual round-trips over the network. Even with basic transaction batching, throughput is usually capped at 2,000–5,000 rows/second.
 3. **Reflection Overhead**: Dynamically mapping string columns to record properties at runtime using standard reflection consumes CPU cycles and generates temporary object allocations on every single cell.
 
@@ -52,7 +52,7 @@ Stream (CSV / XLSX / JSONL / NDJSON)
    - **CSV**: Built on [Sylvan.Data.Csv](https://github.com/MarkPflug/Sylvan), the fastest CSV reader in the .NET ecosystem, reading records as raw spans and UTF-8 bytes with minimal heap allocation.
    - **JSON Lines (NDJSON)**: Built on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader` to slice lines and deserialize records directly from raw byte sequences without intermediate string allocations.
 2. **Pre-Compiled Expression Trees & High-Speed Deserialization**: Column mappings are compiled into high-performance delegate expressions once and cached for the lifetime of your application. For JSON Lines, `Utf8JsonReader` deserializes records directly into target types with optional case-insensitivity.
-3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity ($O(1)$ memory).
+3. **Concurrent Producer-Consumer Pipelining**: Uses bounded `System.Threading.Channels` to decouple CPU stream parsing and validation from database socket operations. Both tasks execute in parallel without lockstep waits, while backpressure ensures that in-flight batches never exceed the configured channel capacity (O(1) memory).
 4. **Native Bulk Transport Protocols**: FastIngest avoids generic SQL queries and binds directly to native database streaming interfaces:
    - PostgreSQL: Native binary `COPY ... FROM STDIN (FORMAT BINARY)`
    - SQL Server: `SqlBulkCopy` backed by a custom `BatchDataReader<TRecord>`

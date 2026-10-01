@@ -1,12 +1,12 @@
-# Constant-Memory Architecture ($O(1)$)
+# Constant-Memory Architecture (O(1))
 
-A primary design requirement of FastIngest is guaranteeing a **constant memory footprint ($O(1)$)**, regardless of whether you are ingesting a 1,000-row file or a 50,000,000-row file.
+A primary design requirement of FastIngest is guaranteeing a **constant memory footprint (O(1))**, regardless of whether you are ingesting a 1,000-row file or a 50,000,000-row file.
 
 ---
 
 ## The Root Cause of Ingestion Memory Spikes
 
-In naive data pipelines, memory consumption scales linearly with file size ($O(N)$):
+In naive data pipelines, memory consumption scales linearly with file size (O(N)):
 
 1. **Entire File Buffering**: Uploading a file and reading it via `File.ReadAllBytes()` or storing it in an in-memory `MemoryStream`.
 2. **Intermediate Object Trees**: Deserializing rows into lists like `List<MyEntity>` or populating `System.Data.DataTable` objects. A 5GB CSV file containing 10 million rows typically expands to **12 GB to 20 GB** of heap allocations when materialized as managed C# class instances.
@@ -14,7 +14,7 @@ In naive data pipelines, memory consumption scales linearly with file size ($O(N
 
 ---
 
-## How FastIngest Achieves $O(1)$ Memory
+## How FastIngest Achieves O(1) Memory
 
 FastIngest replaces memory buffering with a pure, forward-only streaming pipeline:
 
@@ -53,7 +53,7 @@ Dynamic property accessors often use `System.Reflection`, which boxes value type
 
 Records are accumulated in batches capped at your configured `batchSize` (default: `5,000`). Batches are posted to a bounded `System.Threading.Channels.Channel<IReadOnlyList<TRecord>>` configured with `BoundedChannelFullMode.Wait`:
 1. Even when CPU row parsing outpaces database socket writes, the producer task pauses at `WriteAsync` whenever the channel reaches capacity (default: 2 batches).
-2. The maximum number of records held in memory is strictly bounded by $(\text{ChannelCapacity} + 1) \times \text{BatchSize}$. For a 5,000-row batch with capacity 2, at most 15,000 rows can exist in flight at any given moment, preserving true $O(1)$ memory guarantees regardless of total file size.
+2. The maximum number of records held in memory is strictly bounded by $(\text{ChannelCapacity} + 1) \times \text{BatchSize}$. For a 5,000-row batch with capacity 2, at most 15,000 rows can exist in flight at any given moment, preserving true O(1) memory guarantees regardless of total file size.
 3. Once written to the database sink, batch references are dropped immediately, remaining within **Generation 0** of the .NET Garbage Collector and avoiding Gen 2 or Large Object Heap (LOH) pollution.
 
 ---

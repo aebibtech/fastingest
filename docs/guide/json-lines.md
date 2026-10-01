@@ -2,7 +2,7 @@
 
 FastIngest provides native, high-performance streaming ingestion for line-delimited JSON (**JSON Lines**, also known as **NDJSON** or `.jsonl` / `.ndjson`).
 
-Unlike traditional JSON deserializers that require loading an entire JSON array into memory ($O(N)$ RAM usage), FastIngest uses a constant-memory ($O(1)$) streaming reader based on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader`. Each line is sliced and deserialized directly from the underlying stream as raw byte spans, validated, and pushed into the concurrent bounded channel pipeline.
+Unlike traditional JSON deserializers that require loading an entire JSON array into memory (O(N) RAM usage), FastIngest uses a constant-memory (O(1)) streaming reader based on `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader`. Each line is sliced and deserialized directly from the underlying stream as raw byte spans, validated, and pushed into the concurrent bounded channel pipeline.
 
 ---
 

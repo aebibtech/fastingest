@@ -12,7 +12,7 @@
 
 ## Architecture Overview
 
-FastIngest processes incoming tabular and line-delimited data using a decoupled producer-consumer pipeline that keeps memory usage constant ($O(1)$) regardless of file size:
+FastIngest processes incoming tabular and line-delimited data using a decoupled producer-consumer pipeline that keeps memory usage constant (O(1)) regardless of file size:
 
 ```
 Stream (CSV / XLSX / JSONL / NDJSON)
@@ -49,7 +49,7 @@ Stream (CSV / XLSX / JSONL / NDJSON)
 ## Key Features
 
 - **Concurrent Producer-Consumer Pipelining**: Decouples CPU parsing/validation from database I/O socket operations using bounded `System.Threading.Channels` with backpressure.
-- **Constant-Memory Streaming**: Stream arbitrarily large files (gigabytes to tens of gigabytes) with strict $O(1)$ memory guarantees.
+- **Constant-Memory Streaming**: Stream arbitrarily large files (gigabytes to tens of gigabytes) with strict O(1) memory guarantees.
 - **Line-Delimited JSON (NDJSON / JSONL)**: High-speed streaming parser over `System.IO.Pipelines.PipeReader` and `System.Text.Json.Utf8JsonReader` with automatic format heuristics (`.jsonl`, `.ndjson`, or `{` content peeking).
 - **7 Native Database Sinks**: Direct bulk protocol integrations for PostgreSQL (`COPY`), SQL Server (`SqlBulkCopy`), MySQL (`MySqlBulkCopy`), SQLite (`WAL`), MongoDB (`BulkWriteAsync`), Azure Cosmos DB, and Elasticsearch.
 - **Validation Strategies**:
