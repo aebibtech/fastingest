@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>ASP.NET Core extensions for FastIngest, providing minimal API endpoints for bulk ingestion and real-time SignalR progress streaming.</Description>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FastIngest.Extensions.DependencyInjection\FastIngest.Extensions.DependencyInjection.csproj" />
+  </ItemGroup>
+
+</Project>

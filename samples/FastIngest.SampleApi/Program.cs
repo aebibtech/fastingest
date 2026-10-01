@@ -1,3 +1,4 @@
+using FastIngest.AspNetCore.Extensions;
 using FastIngest.Core.Common;
 using FastIngest.Core.Pipeline;
 using FastIngest.Core.Results;
@@ -12,13 +13,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure OpenAPI specification support for .NET 9
 builder.Services.AddOpenApi();
 
-// Register FastIngest dependency injection layer, PostgreSQL sink defaults, and profiles from assembly
-builder.Services.AddFastIngest(ingest =>
+// Register FastIngest ASP.NET Core integration, SignalR hub, background worker, PostgreSQL sink, and profiles
+builder.Services.AddFastIngestAspNetCore(ingest =>
 {
     ingest.AddPostgreSqlSink(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? "Host=localhost;Database=fastingest;Username=postgres;Password=postgres");
     ingest.RegisterProfilesFromAssembly(typeof(Program).Assembly);
 });
+
+// Register InMemorySink for testing without live PostgreSQL
+builder.Services.AddSingleton<InMemorySink<CustomerRecord>>();
+builder.Services.AddTransient<IIngestionSink<CustomerRecord>>(sp => sp.GetRequiredService<InMemorySink<CustomerRecord>>());
 
 // Register FluentValidation validator in DI so IFastIngestEngine automatically resolves and applies it
 builder.Services.AddScoped<IValidator<CustomerRecord>, CustomerValidator>();
@@ -31,6 +36,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Map SignalR Hub for real-time progress streaming
+app.MapFastIngestHub("/hubs/fastingest");
+
+// Map idiomatic 202 Accepted bulk upload endpoint with background processing & SignalR progress
+app.MapFastIngestUpload<CustomerRecord>("/api/customers/bulk-upload")
+   .WithName("BulkUploadCustomers");
 
 // Idiomatic Dependency Injection endpoint demonstrating IFastIngestEngine and CustomerImportProfile
 app.MapPost("/api/customers/import", async (IFormFile file, IFastIngestEngine engine, CancellationToken ct) =>

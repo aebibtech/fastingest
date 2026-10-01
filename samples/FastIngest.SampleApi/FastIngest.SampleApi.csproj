@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\FastIngest.Core\FastIngest.Core.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.PostgreSql\FastIngest.PostgreSql.csproj" />
     <ProjectReference Include="..\..\src\FastIngest.Extensions.DependencyInjection\FastIngest.Extensions.DependencyInjection.csproj" />
+    <ProjectReference Include="..\..\src\FastIngest.AspNetCore\FastIngest.AspNetCore.csproj" />
   </ItemGroup>
 
 </Project>
