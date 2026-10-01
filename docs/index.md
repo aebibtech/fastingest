@@ -38,6 +38,9 @@ features:
   - icon: 🛡️
     title: Clean Error Manifests
     details: Seamless FluentValidation integration with FailFast or CollectAndContinue strategies. Export invalid rows and validation errors directly to CSV manifests.
+  - icon: 📡
+    title: ASP.NET Core & SignalR
+    details: Drop-in minimal APIs for 202 Accepted file uploads. Background processing queues with real-time SignalR progress telemetry.
 ---
 
 <div class="home-code-section" style="margin-top: 3rem; text-align: left;">
@@ -70,6 +73,27 @@ var result = await FastIngestPipeline<TransactionRecord>.Create()
     .WriteToPostgresAsync(conn, "transactions");
 
 Console.WriteLine($"Ingested {result.TotalSucceeded:N0} rows in {result.Duration.TotalSeconds:F1}s!");
+```
+
+## ASP.NET Core Integration
+
+FastIngest natively integrates with ASP.NET Core, allowing you to easily stand up a high-performance ingestion API with background workers and real-time SignalR telemetry:
+
+```csharp
+using FastIngest.AspNetCore.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddFastIngestAspNetCore(ingest => {
+    ingest.AddPostgreSqlSink("...");
+    ingest.RegisterProfilesFromAssemblyContaining<Program>();
+});
+
+var app = builder.Build();
+
+app.MapFastIngestHub("/hubs/fastingest"); // SignalR Progress Telemetry
+app.MapFastIngestUpload<TransactionRecord>("/api/transactions/upload"); // 202 Accepted
+
+app.Run();
 ```
 
 ## Supported Destination Sinks

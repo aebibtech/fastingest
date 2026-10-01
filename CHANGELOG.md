@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-10-01
+
+### Added
+- **ASP.NET Core & SignalR Integration** (`FastIngest.AspNetCore`): Native drop-in integration for minimal APIs and background ingestion workers.
+- `IServiceCollection.AddFastIngestAspNetCore()` to register `IngestJobQueue` and `IngestBackgroundService`.
+- `IEndpointRouteBuilder.MapFastIngestHub()` to map a SignalR hub for real-time `ReceiveProgress` and `ReceiveCompletion` telemetry.
+- `IEndpointRouteBuilder.MapFastIngestUpload<TRecord>()` for a `202 Accepted` non-blocking streaming upload endpoint with background file staging.
+- Documentation: `docs/guide/aspnetcore.md` — ASP.NET Core & SignalR guide page.
+
+---
+
 ## [0.4.0] - 2026-10-01
 
 ### Added

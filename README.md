@@ -144,6 +144,30 @@ var jsonlResult = await FastIngestPipeline<CustomerRecord>.Create()
     .WriteToPostgresAsync(connection, "customers");
 ```
 
+### 5. ASP.NET Core & SignalR Minimal API
+
+Add the `FastIngest.AspNetCore` package to effortlessly mount `202 Accepted` bulk upload endpoints that execute via a background queue and stream progress to connecting clients via SignalR:
+
+```csharp
+using FastIngest.AspNetCore.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Registers SignalR, Background queues, and FastIngest
+builder.Services.AddFastIngestAspNetCore(ingest => {
+    ingest.AddPostgreSqlSink("Host=localhost;Database=mydb;Username=postgres;Password=secret");
+    ingest.RegisterProfilesFromAssemblyContaining<CustomerImportProfile>();
+});
+
+var app = builder.Build();
+
+app.MapFastIngestHub("/hubs/fastingest"); // SignalR telemetry hub
+app.MapFastIngestUpload<CustomerRecord>("/api/customers/import"); // 202 Accepted Upload
+
+app.Run();
+```
+*(Clients can pass `?jobId=123` to the upload endpoint and subscribe to `ReceiveProgress` on the Hub to render progress bars.)*
+
 ---
 
 ## Performance Benchmarks
@@ -191,6 +215,7 @@ FastIngest provides machine-readable documentation endpoints adhering to the [`l
 │   ├── FastIngest.MongoDb/        # MongoDB unordered BulkWrite sink
 │   ├── FastIngest.CosmosDb/       # Azure Cosmos DB bulk executor sink
 │   ├── FastIngest.Elasticsearch/  # Elasticsearch BulkAsync sink
+│   ├── FastIngest.AspNetCore/     # ASP.NET Core endpoints, background workers, and SignalR telemetry
 │   └── FastIngest.Extensions.DependencyInjection/ # Engine, DI, and profile registry
 ├── samples/
 │   └── FastIngest.SampleApi/      # Minimal Web API demonstrating ingestion

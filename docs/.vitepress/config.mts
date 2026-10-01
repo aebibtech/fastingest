@@ -88,6 +88,7 @@ export default defineConfig({
           { text: 'Quickstart', link: '/guide/getting-started' },
           { text: 'NDJSON / JSON Lines', link: '/guide/json-lines' },
           { text: 'Dependency Injection', link: '/guide/dependency-injection' },
+          { text: 'ASP.NET Core & SignalR', link: '/guide/aspnetcore' },
           { text: 'Validation & Errors', link: '/guide/validation' },
           { text: 'Resilience & Retries', link: '/guide/resilience' }
         ]
