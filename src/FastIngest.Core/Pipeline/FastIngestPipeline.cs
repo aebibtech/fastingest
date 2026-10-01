@@ -8,9 +8,12 @@ using FastIngest.Core.Common;
 using FastIngest.Core.Exceptions;
 using FastIngest.Core.Mapping;
 using FastIngest.Core.Readers;
+using FastIngest.Core.Resilience;
 using FastIngest.Core.Results;
 using FastIngest.Core.Sinks;
 using FluentValidation;
+using Polly;
+using Polly.Retry;
 using Sylvan.Data.Csv;
 
 namespace FastIngest.Core.Pipeline;
@@ -147,6 +150,16 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(_pipelineOptions);
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IFastIngestPipeline<TRecord> WithResilience(Action<ResilienceOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new ResilienceOptions { Enabled = true };
+        configure(options);
+        _pipelineOptions.Resilience = options;
         return this;
     }
 
@@ -411,6 +424,36 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
             channel.Writer.Complete();
         }
 
+        ResiliencePipeline<long>? resiliencePipeline = null;
+        var resOpts = _pipelineOptions.Resilience;
+        if (resOpts?.Enabled == true)
+        {
+            var shouldRetry = resOpts.ShouldRetry ?? TransientFaultPredicates.IsTransient;
+
+            resiliencePipeline = new ResiliencePipelineBuilder<long>()
+                .AddRetry(new RetryStrategyOptions<long>
+                {
+                    ShouldHandle = new PredicateBuilder<long>()
+                        .Handle<Exception>(shouldRetry),
+                    MaxRetryAttempts = resOpts.MaxRetryAttempts,
+                    BackoffType = DelayBackoffType.Exponential,
+                    UseJitter = resOpts.UseJitter,
+                    Delay = resOpts.BaseDelay,
+                    MaxDelay = resOpts.MaxDelay,
+                    OnRetry = args =>
+                    {
+                        _progressCallback?.Invoke(new IngestProgress(
+                            Interlocked.Read(ref totalProcessed),
+                            Interlocked.Read(ref totalSucceeded),
+                            Interlocked.Read(ref totalFailed),
+                            null,
+                            $"Transient fault on attempt {args.AttemptNumber + 1}; retrying in {args.RetryDelay.TotalMilliseconds:0}ms. Error: {args.Outcome.Exception?.Message}"));
+                        return ValueTask.CompletedTask;
+                    }
+                })
+                .Build();
+        }
+
         var consumerTask = Task.Run(async () =>
         {
             long succeeded = 0;
@@ -418,7 +461,18 @@ public class FastIngestPipeline<TRecord> : IFastIngestPipeline<TRecord>
             {
                 await foreach (var batch in channel.Reader.ReadAllAsync(ct))
                 {
-                    long written = await sink.WriteBatchAsync(batch, ct);
+                    long written;
+                    if (resiliencePipeline != null)
+                    {
+                        written = await resiliencePipeline.ExecuteAsync(
+                            async token => await sink.WriteBatchAsync(batch, token).ConfigureAwait(false),
+                            ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        written = await sink.WriteBatchAsync(batch, ct).ConfigureAwait(false);
+                    }
+
                     succeeded += written > 0 ? written : batch.Count;
                     Interlocked.Exchange(ref totalSucceeded, succeeded);
 

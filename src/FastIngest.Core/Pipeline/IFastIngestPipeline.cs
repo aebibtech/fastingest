@@ -89,6 +89,13 @@ public interface IFastIngestPipeline<TRecord>
     IFastIngestPipeline<TRecord> WithOptions(Action<PipelineOptions> configure);
 
     /// <summary>
+    /// Configures transient fault handling and retry policies applied around each batch sink write.
+    /// </summary>
+    /// <param name="configure">The action to configure <see cref="FastIngest.Core.Resilience.ResilienceOptions"/>.</param>
+    /// <returns>The pipeline instance for fluent chaining.</returns>
+    IFastIngestPipeline<TRecord> WithResilience(Action<FastIngest.Core.Resilience.ResilienceOptions> configure);
+
+    /// <summary>
     /// Configures JSON serialization options for JSON Lines / NDJSON streaming ingestion.
     /// </summary>
     /// <param name="options">The <see cref="System.Text.Json.JsonSerializerOptions"/> instance.</param>

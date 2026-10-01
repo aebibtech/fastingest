@@ -50,4 +50,11 @@ public sealed class PipelineOptions
     /// When null, defaults to case-insensitive property matching.
     /// </summary>
     public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional resilience and retry configuration for transient sink faults.
+    /// When <see langword="null"/> or <see cref="FastIngest.Core.Resilience.ResilienceOptions.Enabled"/> is <c>false</c>,
+    /// no retry logic is applied.
+    /// </summary>
+    public FastIngest.Core.Resilience.ResilienceOptions? Resilience { get; set; }
 }

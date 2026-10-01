@@ -88,7 +88,8 @@ export default defineConfig({
           { text: 'Quickstart', link: '/guide/getting-started' },
           { text: 'NDJSON / JSON Lines', link: '/guide/json-lines' },
           { text: 'Dependency Injection', link: '/guide/dependency-injection' },
-          { text: 'Validation & Errors', link: '/guide/validation' }
+          { text: 'Validation & Errors', link: '/guide/validation' },
+          { text: 'Resilience & Retries', link: '/guide/resilience' }
         ]
       },
       {

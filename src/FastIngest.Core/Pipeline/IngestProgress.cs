@@ -7,9 +7,11 @@ namespace FastIngest.Core.Pipeline;
 /// <param name="RowsSucceeded">The total number of records successfully written to the sink up to this point.</param>
 /// <param name="RowsFailed">The total number of records rejected due to validation or parsing errors up to this point.</param>
 /// <param name="PercentComplete">The estimated percentage of completion (0.0 to 100.0) if the stream supports seeking, or null.</param>
+/// <param name="Message">Optional informational telemetry message, such as retry notifications or stage transitions.</param>
 public sealed record IngestProgress(
     long RowsProcessed,
     long RowsSucceeded,
     long RowsFailed,
-    double? PercentComplete = null
+    double? PercentComplete = null,
+    string? Message = null
 );
