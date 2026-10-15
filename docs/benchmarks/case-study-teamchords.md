@@ -8,7 +8,7 @@ description: "Scaling worship song library ingestion from 2,900 to 15,700 items/
 **Scaling Worship Song Library Ingestion from 2,900 to 15,700 Items/Sec with FastIngest & Binary COPY**
 
 - **Author:** Paul Abib Camano, Aebibtech
-- **Project:** TeamChords v2 (Live Music & Worship Band Management Platform)
+- **Project:** TeamChords v2 (Online ChordPro library and live setlist management for worship teams and gigging bands)
 - **Tech Stack:** ASP.NET Core 9, PostgreSQL 17, FastIngest .NET, EF Core 9, SignalR, Redis 7, React Native / Expo
 - **Date:** October 2026
 - **Status:** Shipped to Production
