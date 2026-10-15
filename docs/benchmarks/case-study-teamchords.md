@@ -68,23 +68,33 @@ We needed a unified, high-throughput bulk import pipeline that could:
 ## 2. Evolution of Bulk Import Approaches
 
 ```mermaid
-flowchart TD
-    subgraph Approach 1: Client Fan-Out
-        C1[Client Web/Mobile] -->|1 request per song| E1[POST /api/chordsheets]
-        E1 -->|N roundtrips| DB1[(PostgreSQL)]
+flowchart LR
+    subgraph A1 ["Approach 1: Client Fan-Out"]
+        direction LR
+        C1["Client Web / Mobile"] -->|"1 request per song"| E1["POST /api/chordsheets"]
+        E1 -->|"N network roundtrips"| DB1[("PostgreSQL")]
     end
+```
 
-    subgraph Approach 2: EF Core AddRange Batching
-        C2[Client] -->|Bulk JSON Array| E2[POST /api/chordsheets/bulk]
-        E2 -->|Chunk 50 + AddRange| EF[EF Core ChangeTracker]
-        EF -->|Batched INSERT SQL| DB2[(PostgreSQL)]
+```mermaid
+flowchart LR
+    subgraph A2 ["Approach 2: EF Core AddRange Batching"]
+        direction LR
+        C2["Client (Web / Mobile)"] -->|"Bulk JSON array"| E2["POST /api/chordsheets/bulk"]
+        E2 -->|"Chunk 50 + AddRange"| EF["EF Core ChangeTracker"]
+        EF -->|"Batched INSERT SQL"| DB2[("PostgreSQL")]
     end
+```
 
-    subgraph Approach 3: FastIngest Binary COPY
-        C3[Client] -->|NDJSON / CSV Stream| E3[POST /api/chordsheets/bulk]
-        E3 -->|Streaming Channel| FI[FastIngest Pipeline]
-        FI -->|NpgsqlBinaryImporter| DB3[(PostgreSQL Binary Heap)]
-        FI -.->|Live Row Progress| HUB[SignalR + Redis] -.-> C3
+```mermaid
+flowchart LR
+    subgraph A3 ["Approach 3: FastIngest Binary COPY"]
+        direction LR
+        C3["Client (Web / Mobile)"] -->|"NDJSON / CSV stream"| E3["POST /api/chordsheets/bulk"]
+        E3 -->|"Streaming channel"| FI["FastIngest Pipeline"]
+        FI -->|"NpgsqlBinaryImporter"| DB3[("PostgreSQL Binary Heap")]
+        FI -.->|"Live row progress"| HUB["SignalR + Redis"]
+        HUB -.->|"Real-time push"| C3
     end
 ```
 
