@@ -69,6 +69,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Sinks', link: '/sinks/postgresql' },
       { text: 'Benchmarks', link: '/benchmarks/performance' },
+      { text: 'Case Study', link: '/benchmarks/case-study-teamchords' },
       {
         text: 'LLM Docs',
         items: [
@@ -111,7 +112,8 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Memory Model', link: '/benchmarks/memory-model' },
-          { text: 'Performance Benchmarks', link: '/benchmarks/performance' }
+          { text: 'Performance Benchmarks', link: '/benchmarks/performance' },
+          { text: 'Case Study: TeamChords v2', link: '/benchmarks/case-study-teamchords' }
         ]
       }
     ],

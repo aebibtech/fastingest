@@ -59,6 +59,7 @@ Console.WriteLine($"Ingested {result.TotalSucceeded:N0} rows in {result.Duration
 
 - [Memory Model & Bounded Channels](https://fastingest.aebibtech.com/benchmarks/memory-model): Deep dive into bounded System.Threading.Channels, backpressure mechanics, Gen 0/1/2 GC analysis, and O(1) memory guarantees.
 - [Performance Benchmarks](https://fastingest.aebibtech.com/benchmarks/performance): Comprehensive BenchmarkDotNet results across 100K, 1M, and 10M rows comparing FastIngest against EF Core and Dapper.
+- [Case Study: TeamChords v2 (Production Bulk Ingestion)](https://fastingest.aebibtech.com/benchmarks/case-study-teamchords): Real-world production case study: Scaling music library bulk ingestion from 2,900 to 15,700 items/sec using FastIngest and PostgreSQL binary COPY.
 
 ## Packages & Installation
 

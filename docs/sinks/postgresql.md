@@ -42,6 +42,10 @@ COPY "public"."customers" ("id", "email", "full_name", "balance") FROM STDIN (FO
 - **Sub-Millisecond Batch Flush**: Capable of writing 180,000+ rows/second over a local or low-latency gigabit network.
 - **Null Safety**: Transparently dispatches `WriteNullAsync` when pre-compiled getter expressions return `null`.
 
+::: tip Real-World Production Case Study
+See how **[TeamChords v2](/benchmarks/case-study-teamchords)** utilized FastIngest's PostgreSQL binary `COPY` pipeline in production, scaling music library bulk onboarding from **2,910 to 15,710 items/sec** (5.4x faster) with zero GC thread allocations and real-time SignalR progress updates.
+:::
+
 ---
 
 ## Installation

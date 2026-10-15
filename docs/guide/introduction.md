@@ -71,3 +71,4 @@ Stream (CSV / XLSX / JSONL / NDJSON)
 - **Fail-Fast or Error Quarantine**: Stop immediately on the first bad record or collect errors into an exportable CSV manifest while saving valid records.
 - **First-Class Dependency Injection**: Configure destination profiles in your startup pipeline and inject `IFastIngestEngine` into ASP.NET Core Minimal APIs or background workers.
 - **Clean Developer Experience**: Fluent, chainable builder API with built-in progress events and cancellation token support.
+- **Field-Tested in Production**: Proven in production applications like [TeamChords v2](/benchmarks/case-study-teamchords), scaling bulk imports from 2,900 to 15,710 items/sec (5.4x speedup) with zero GC thread allocations and real-time SignalR telemetry.

@@ -122,3 +122,17 @@ If you wrote a custom sink implementing `IIngestionSink<TRecord>`, you can expli
 ```csharp
 app.MapFastIngestUpload<CustomerRecord, MyCustomAnalyticsSink>("/api/customers/analytics");
 ```
+
+---
+
+## Real-World Case Study: TeamChords v2
+
+For a complete production implementation combining ASP.NET Core Minimal APIs, custom `NpgsqlBinaryImporter` sinks, row-level SignalR telemetry, a Redis backplane, and a React Native / Expo client, see:
+
+👉 **[Case Study: High-Throughput Bulk Import in .NET 9 & PostgreSQL 17](/benchmarks/case-study-teamchords)**
+
+Key highlights from the case study:
+- Replaced client-side fan-out loops with streaming minimal API uploads.
+- Streamed live row counts to client devices via SignalR without polling.
+- Reduced onboarding import latency from 343 ms to 63 ms for 1,000 song chord sheets (15,710 items/sec).
+

@@ -105,6 +105,13 @@ const pages = [
     file: 'benchmarks/performance.md',
     url: '/benchmarks/performance',
     description: 'Comprehensive BenchmarkDotNet results across 100K, 1M, and 10M rows comparing FastIngest against EF Core and Dapper.'
+  },
+  {
+    section: 'Architecture & Benchmarks',
+    title: 'Case Study: TeamChords v2 (Production Bulk Ingestion)',
+    file: 'benchmarks/case-study-teamchords.md',
+    url: '/benchmarks/case-study-teamchords',
+    description: 'Real-world production case study: Scaling music library bulk ingestion from 2,900 to 15,700 items/sec using FastIngest and PostgreSQL binary COPY.'
   }
 ]
 

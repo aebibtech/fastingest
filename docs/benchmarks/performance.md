@@ -100,6 +100,23 @@ Memory (MB)
 
 ---
 
+## 4. Real-World Production Case Study: TeamChords v2
+
+Beyond synthetic benchmarks, FastIngest was benchmarked against authentic worship music libraries (ChordPro `.cho` files, JSON, and CSV) in **TeamChords v2** on PostgreSQL 17:
+
+| Dataset Size | EF Core 9 Batching | FastIngest (Binary COPY) | Latency Delta | Throughput Delta | Thread Allocation Delta |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| **50 items** | 16.5 ms (3,031/s) | **7.9 ms (6,315/s)** | **-52.1% (2.1x faster)** | **+108.3%** | ~1.4 MB vs **0.00 KB** |
+| **202 items** | 67.0 ms (3,014/s) | **21.1 ms (9,555/s)** | **-68.5% (3.2x faster)** | **+217.0%** | ~5.8 MB vs **0.00 KB** |
+| **500 items** | 174.8 ms (2,860/s) | **36.9 ms (13,549/s)** | **-78.9% (4.7x faster)** | **+373.7%** | ~14.2 MB vs **106 KB** |
+| **1,000 items** | 343.6 ms (2,910/s) | **63.7 ms (15,710/s)** | **-81.5% (5.4x faster)** | **+439.8%** | ~28.5 MB vs **0.00 KB** |
+
+For full architectural blueprints, custom sink implementations, and client telemetry details:
+
+👉 **[Read the Full TeamChords v2 Case Study](/benchmarks/case-study-teamchords)**
+
+---
+
 ## Key Takeaways
 
 1. **20x to 30x Faster than EF Core**: By bypassing Entity Framework change tracking and query generation in favor of native bulk streaming interfaces, FastIngest delivers up to 30x higher throughput.

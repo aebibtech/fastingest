@@ -104,9 +104,20 @@ app.Run();
 | **SQL Server / Azure SQL** | Streaming `SqlBulkCopy` + `BatchDataReader` | 140,000+ rows/sec | Constant (~26 MB) |
 | **MySQL / MariaDB** | `MySqlBulkCopy` Local Infile / Batched Insert | 110,000+ rows/sec | Constant (~24 MB) |
 | **SQLite** | Parameterized Batch Loop + WAL Mode | 95,000+ rows/sec | Constant (~18 MB) |
-| **MongoDB** | Unordered `BulkWriteAsync` (`InsertOneModel`) | 85,000+ rows/sec | Constant (~30 MB) |
+| **MongoDB** | Unordered `BulkWriteAsync` (`InsertOneModel`) | 85,000+ docs/sec | Constant (~30 MB) |
 | **Azure Cosmos DB** | Concurrent Dispatch + `AllowBulkExecution` | 35,000+ docs/sec | Constant (~32 MB) |
 | **Elasticsearch** | `BulkAsync` (`IndexOperation`) NDJSON Chunking | 65,000+ docs/sec | Constant (~35 MB) |
+
+## Production Case Study: TeamChords v2
+
+See how [TeamChords v2](/benchmarks/case-study-teamchords) (Online team songbook and live setlist management platform) scaled bulk song library ingestion from **2,900 to 15,710 items/second** with a **5.4x latency reduction** and **zero thread allocations** using FastIngest and PostgreSQL 17 binary COPY:
+
+- **1,000 chord sheets ingested in 63.7 ms** (down from 343.6 ms with EF Core 9).
+- **Zero GC thread allocations** during binary COPY import.
+- Real-time row progress and library synchronization via **SignalR** and a **Redis backplane**.
+- Fully unblocked client UI across mobile (React Native / Expo) and web.
+
+👉 **[Read the Full Production Case Study →](/benchmarks/case-study-teamchords)**
 
 ## Built for AI & LLM Coding Assistants
 
