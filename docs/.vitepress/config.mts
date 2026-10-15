@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 import { generateLlms } from '../scripts/generate-llms.mjs'
 
 // Target platform detection:
@@ -11,7 +12,8 @@ const isGitHubPages = !isCloudflare && (Boolean(process.env.GITHUB_PAGES) || pro
 const base = process.env.DOCS_BASE || (isGitHubPages ? '/fastingest/' : '/')
 const hostname = process.env.DOCS_HOSTNAME || (isGitHubPages ? 'https://aebibtech.github.io/fastingest' : 'https://fastingest.aebibtech.com')
 
-export default defineConfig({
+export default withMermaid(
+  defineConfig({
   title: 'FastIngest',
   description: 'High-throughput, constant-memory bulk ingestion pipeline for .NET',
   base,
@@ -141,10 +143,16 @@ export default defineConfig({
     }
   },
 
+  vite: {
+    optimizeDeps: {
+      include: ['mermaid', 'fastdom']
+    }
+  },
+
   buildEnd: async (siteConfig) => {
     generateLlms({
       baseUrl: hostname,
       outDirs: [siteConfig.outDir]
     })
   }
-})
+}))
